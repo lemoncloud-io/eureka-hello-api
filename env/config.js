@@ -90,6 +90,16 @@ const CONF = (serverless) => {
             kmsKey: '*',                                        // KMS key-id
             bucket: 'adam-hello-www',                           // Name of S3 public bucket.
         },
+        alarmo: {
+            name: 'alarmo-app',
+            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            region: 'ap-northeast-2',
+            env: 'alarmo.yml',                                    // environment file
+            securityGroupIds: undefined,                        // securityGroupIds in VPC
+            subnetIds: undefined,                               // subnetIds in VPC
+            kmsKey: '*',                                        // KMS key-id
+            bucket: 'alarmo-hello-www',                           // Name of S3 public bucket.
+        },
         none: {
             name: 'none-app',
             runtime: 'nodejs16.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
