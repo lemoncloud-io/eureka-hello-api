@@ -12,7 +12,7 @@
  * @date        2019-07-19 initial version
  * @date        2019-12-19 optimized for `lemon-core#v2`
  * @date        2022-05-24 optimized for `lemon-core#3.1.1` w/ serverless 3.16
- * @date        2022-08-17 optimized for `nodejs16`
+ * @date        2022-08-17 optimized for `nodejs18`
  *
  * @copyright (C) lemoncloud.io 2019 - All Rights Reserved.
  */
@@ -22,7 +22,7 @@ const CONF = (serverless) => {
     return {
         lemon: {
             name: 'lemon-app',
-            runtime: 'nodejs16.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',
             env: 'lemon.yml',                                   // environment file
             securityGroupIds: ['sg-08770106971509def'],         // securityGroup : `lemon-services-api`
@@ -32,7 +32,7 @@ const CONF = (serverless) => {
         },
         colover: {
             name: 'colover-app',
-            runtime: 'nodejs16.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',
             env: 'colover.yml',                                 // environment file
             securityGroupIds: ['sg-0c88604df5c54cdf5'],         // securityGroupIds `lemon-services-api`
@@ -42,7 +42,7 @@ const CONF = (serverless) => {
         },
         ssocio: {
             name: 'ssocio-app',
-            runtime: 'nodejs16.x',                              // Powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs18.x',                              // Powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',
             env: 'ssocio.yml',                                  // environment file
             securityGroupIds: ['sg-0b0fb4d4bd885c7cd'],         // securityGroupIds `lemon-services`
@@ -52,7 +52,7 @@ const CONF = (serverless) => {
         },
         neuro: {
             name: 'neuro-app',
-            runtime: 'nodejs16.x',                              // Powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs18.x',                              // Powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',
             env: 'neuro.yml',                                   // environment file
             securityGroupIds: ['sg-0da963f5f12eba4e6'],         // securityGroupIds `lemon-services`
@@ -83,7 +83,7 @@ const CONF = (serverless) => {
         },
         jober: {
             name: 'jober-app',
-            runtime: 'nodejs16.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',
             env: 'jober.yml',                                   // environment file
             securityGroupIds: undefined,                        // securityGroupIds in VPC
@@ -93,7 +93,7 @@ const CONF = (serverless) => {
         },
         comics: {
             name: 'comics-app',
-            runtime: 'nodejs16.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',
             env: 'comics.yml',                                  // environment file
             securityGroupIds: undefined,                        // securityGroupIds in VPC
@@ -103,7 +103,7 @@ const CONF = (serverless) => {
         },
         adam: {
             name: 'adam-app',
-            runtime: 'nodejs16.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',
             env: 'adam.yml',                                    // environment file
             securityGroupIds: undefined,                        // securityGroupIds in VPC
@@ -111,9 +111,19 @@ const CONF = (serverless) => {
             kmsKey: '*',                                        // KMS key-id
             bucket: 'adam-hello-www',                           // Name of S3 public bucket.
         },
+        alarmo: {
+            name: 'alarmo-app',
+            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            region: 'ap-northeast-2',
+            env: 'alarmo.yml',                                    // environment file
+            securityGroupIds: undefined,                        // securityGroupIds in VPC
+            subnetIds: undefined,                               // subnetIds in VPC
+            kmsKey: '*',                                        // KMS key-id
+            bucket: 'alarmo-hello-www',                           // Name of S3 public bucket.
+        },
         none: {
             name: 'none-app',
-            runtime: 'nodejs16.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',
             env: 'none.yml',                                    // environment file
             securityGroupIds: undefined,                        // securityGroupIds in VPC

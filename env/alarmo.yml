@@ -6,10 +6,8 @@ default_env: &default_env
   LS: 0                   # log silence.
   LC: 1                   # line-coloring
   TS: 1                   # time-stamp in line
-  NAME: 'colover'         # profile name.
-  BACKBONE_API:  ''       # NO USE BACKBONE
-  SLACK_PUT_S3: 0         # flag to auto save into s3 bucket if slack message.
-  SLACK_PUBLIC: 'AQICAHiPBSQJJBm6GYmzoarYHMhQe8Usgfge7ugXevmEy4GodwHNIn1KOIJtxZpyTZvU6s7uAAAAtDCBsQYJKoZIhvcNAQcGoIGjMIGgAgEAMIGaBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDLs+pEXIEZ/6Zuf38QIBEIBt9t/VelRKiZi4kWUt6SajwsBfydKjq/5i6/O6kBzEDnLIjNKTwAgvurzIYKod45WHyv1pLV+XfTb2wxJj3RuVe0dAt0U65NuQ4AQ0vhaqPRbwKrAljCoAUQW02I5Guw0I1kb6ZbA+kAnNNyWkxg=='
+  NAME: 'alarmo'          # profile name.
+  SLACK_PUBLIC: 'AQICAHjvEmkmEbVyTKAY9QGidrhRrLYlYQ+aWXcIsHzizHUPZwEbJGfDxdsypzhkidfA8UtQAAAAsDCBrQYJKoZIhvcNAQcGoIGfMIGcAgEAMIGWBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDOLk5WTGYD+wuin+jgIBEIBpeRNaNt4SJN0Am+G/OPK0FA7ReJq/E/cf4Iek5o9oLIjYXb/op3XU5P+SbUou/HM5EHhX1TyRE4oQcXw0Q2ngb8FKQ1EpCZHArVXfNWUco+BG0I/eIlgEKiLHcemDJOLSAa+1EVMQzKA3'
 
 #-----------------------------------
 # local development configuration.
@@ -35,8 +33,5 @@ prod:
   <<: *default_env
   STAGE: 'production'
   NS: SS
-  TS: 0                   # no timestamp (use cloud-watch)
-  LC: 0                   # no line-coloring
-  LS: 1                   # log silence (nothing to log!)
-  SLACK_PUT_S3: 1         # flag to auto save into s3 bucket if slack message.
+  TS: 0
 

@@ -326,8 +326,9 @@ export class HelloService extends CoreService<Model, ModelType> {
                     const { Bucket, Key, Location } = res;
                     _inf(NS, `> uploaded[${Bucket}/${Key}] =`, $U.json(res));
                     const link = Location;
-                    const _pretext = title == 'error-report' ? title : pretext;
-                    const text = title == 'error-report' ? pretext : title;
+                    //* change btwn title & pretext.
+                    const _pretext = title?.startsWith('error-report') ? title : pretext;
+                    const text = title?.startsWith('error-report') ? pretext : title;
                     const tag0 = `${text}`.startsWith('#error') ? ':rotating_light:' : '';
                     message.attachments = [
                         {
@@ -534,8 +535,13 @@ export class HelloService extends CoreService<Model, ModelType> {
             : (data.data && data.data.channel) || data.channel;
         const message = data.message || data.error;
         _log(`>> data[${channel || ''}] =`, $U.json(data));
+        const service = (() => {
+            const str = $T.S(data?.service);
+            return str.indexOf('://') > 0 ? str.substring(str.indexOf('://') + 3) : str;
+        })();
+        const title = service ? `error-report: \`${service}\`` : 'error-report';
 
-        return this.packageWithChannel(channel)(message, 'error-report', this.asText(data), []);
+        return this.packageWithChannel(channel)(message, title, this.asText(data), []);
     };
 
     /**

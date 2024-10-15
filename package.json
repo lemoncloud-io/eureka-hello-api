@@ -1,6 +1,6 @@
 {
     "name": "lemon-hello-api",
-    "version": "2.4.3d",
+    "version": "2.24.1014",
     "description": "Simple Serverless MicroService API with `Lambda` + `API Gateway` + `Web Socket` + `SNS` + `SQS` + `KMS`",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -28,6 +28,7 @@
         "express.adam": "ENV=adam STAGE=local npm run start",
         "express.mediagen": "ENV=mediagen STAGE=local npm run start",
         "express.securenet": "ENV=securenet STAGE=local npm run start",
+        "express.alarmo": "ENV=alarmo STAGE=local npm run start",
         "!deploy": "----- deploy to AWS by serverless -----",
         "deploy.lemon": "npm run build && sls deploy --param='profile=lemon'  --stage dev",
         "deploy.lemon.prod": "npm run build && sls deploy --param='profile=lemon'  --stage prod",
@@ -39,6 +40,7 @@
         "deploy.colover": "npm run build && sls deploy --param='profile=colover' --stage prod",
         "deploy.mediagen": "npm run build && sls deploy --param='profile=mediagen' --stage prod",
         "deploy.securenet": "npm run build && sls deploy --param='profile=securenet' --stage prod",
+        "deploy.alarmo": "npm run build && sls deploy --param='profile=alarmo' --stage prod",
         "!info": "------- print sls infor by profile -----",
         "info": "sls info --stage prod",
         "info.lemon": "sls info --param='profile=lemon'  --stage prod",
@@ -49,6 +51,7 @@
         "info.colover": "sls info --param='profile=colover' --stage prod",
         "info.mediagen": "sls info --param='profile=mediagen' --stage prod",
         "info.securenet": "sls info --param='profile=securenet' --stage prod",
+        "info.alarmo": "sls info --param='profile=alarmo' --stage prod",
         "!pack": "------- build gulp and prepare to release -----",
         "pack.lemon": "npm run build && sls package --param='profile=lemon'  --stage prod",
         "!logs": "------- print logs of serverless by profile -----",
@@ -61,6 +64,7 @@
         "logs.mediagen": "sls logs --param='profile=mediagen'  --stage prod -t --startTime 5m -f backend",
         "logs.securenet": "sls logs --param='profile=securenet'  --stage prod -t --startTime 5m -f lambda",
         "logs.lemon.prod": "sls logs --param='profile=lemon'  --stage prod -t --startTime 5m -f backend",
+        "logs.alarmo": "sls logs --param='profile=alarmo'  --stage prod -t --startTime 5m -f backend",
         "!remove": "----- sls remove by profile -----",
         "remove": "sls remove --stage prod",
         "remove.lemon": "sls remove --param='profile=lemon'  --stage prod",
@@ -74,7 +78,7 @@
         "plato": "plato -r -d complexity dist"
     },
     "dependencies": {
-        "lemon-core": "^3.2.7"
+        "lemon-core": "^3.2.9"
     },
     "devDependencies": {
         "@cruglobal/serverless-merge-config": "^1.1.0",
@@ -116,7 +120,7 @@
         "dist/**/*"
     ],
     "engines": {
-        "node": ">=16.17.0"
+        "node": ">=18.19.0"
     },
     "keywords": [
         "lemoncloud",
