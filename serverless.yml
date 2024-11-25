@@ -70,6 +70,7 @@ custom:
   # S3 Bucket
   #------------------------------------------------
   bucketName:
+    #TODO - dynamic build bucket-name like `<profile>-hello-www` (as default) to avoid the duplicated name @steve
     local: lemon-hello-www-dev
     dev: lemon-hello-www-dev
     prod: ${self:custom.CONF.${self:custom.CORE.profile}.bucket, 'lemon-hello-www'}
