@@ -7,11 +7,9 @@
  *
  *
  * @author      Steve Jung <steve@lemoncloud.io>
- * @date        2019-07-31 support ECMA 2016.
- * @date        2019-08-09 optimized with `lemon-core#1.1.1`
- * @date        2019-11-26 optimized with `lemon-core#2.0.0`
+ * @date        2024-11-27 initial version with `lemon-core#3.2.10`
  *
- * @copyright (C) lemoncloud.io 2019 - All Rights Reserved.
+ * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
 /** ********************************************************************************************************************
  *  Loading API Services.

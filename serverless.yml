@@ -1,7 +1,7 @@
 #------------------------------------------------
 # Serverless Configuration.
 #------------------------------------------------
-service: lemon-hello-api
+service: eureka-hello-api
 
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
@@ -23,12 +23,12 @@ custom:
     region: ${opt:region, 'ap-northeast-2'}     # run option `--region` `-r`
     stage: ${opt:stage, 'dev'}                  # run option `--stage` `-s`
     env: ${param:env, './env/none.yml'}         # run option `--env`
-  CONF: ${file(./env/config.js):CONF}           # merge config from `config.js` by profile.
+  CONF: ${file(./env/config.js):CONF}           # merge with `config.js` by profile.
   #------------------------------------------------
   # serverless-offline
   #------------------------------------------------
   serverless-offline:
-    port: 8888
+    port: 8000
   #------------------------------------------------
   # Documentation
   #   - https://github.com/9cookies/serverless-aws-documentation
@@ -38,23 +38,23 @@ custom:
   # Dynamo: (MovesTest)
   #------------------------------------------------
   tableName:
-    local: LemonHelloTest
-    dev: LemonHelloTest
-    prod: LemonHelloTable
+    local: eureka-hello-table-dev
+    dev: eureka-hello-table-dev
+    prod: eureka-hello-table
   #------------------------------------------------
   # SQS Queue
   #------------------------------------------------
   queueName:
-    local: lemon-hello-sqs-dev
-    dev: lemon-hello-sqs-dev
-    prod: lemon-hello-sqs
+    local: eureka-hello-sqs-dev
+    dev: eureka-hello-sqs-dev
+    prod: eureka-hello-sqs
   #------------------------------------------------
   # SNS Registration
   #------------------------------------------------
   topicName:
-    local: lemon-hello-sns-dev
-    dev: lemon-hello-sns-dev
-    prod: lemon-hello-sns
+    local: eureka-hello-sns-dev
+    dev: eureka-hello-sns-dev
+    prod: eureka-hello-sns
   topicArn:
     Fn::Join:
       - ''
@@ -66,14 +66,6 @@ custom:
         - Fn::GetAtt:
           - MyInputTopic
           - TopicName
-  #------------------------------------------------
-  # S3 Bucket
-  #------------------------------------------------
-  bucketName:
-    #TODO - dynamic build bucket-name like `<profile>-hello-www` (as default) to avoid the duplicated name @steve
-    local: lemon-hello-www-dev
-    dev: lemon-hello-www-dev
-    prod: ${self:custom.CONF.${self:custom.CORE.profile}.bucket, 'lemon-hello-www'}
   #------------------------------------------------
   # pruning old versions
   #------------------------------------------------
@@ -101,16 +93,16 @@ custom:
 #------------------------------------------------
 provider:
   name: aws
-  profile: ${param:profile, 'none'}
+  # profile: ${param:profile, 'none'}
   stage: ${opt:stage, 'dev'}
 
   # Lambda Runtime Environment
   memorySize: 512
   timeout: 30
-  runtime: ${self:custom.CONF.${self:custom.CORE.profile}.runtime, 'nodejs16.x'}
+  runtime: ${self:custom.CONF.${self:custom.CORE.profile}.runtime, 'nodejs18.x'}
   region: ${self:custom.CONF.${self:custom.CORE.profile}.region, self:custom.CORE.region}      # profile의 region를 먼저 사용하고, 없으면 실행 옵션값.
 
-  # WARN! VPC 없이 실행해보기..... (중요! VPC이용시 slack-hook 접속시 NAT 구성이 필요함 + VPC Endpoint)
+  # WARN! NO VPC required due to NAT configuration to connect outside.
   # # VPC Configuration for Lambda.
   # vpc:
   #   securityGroupIds: ${self:custom.CONF.${self:custom.CORE.profile}.securityGroupIds}
@@ -118,53 +110,37 @@ provider:
 
   # Lambda function's IAM Role here
   iamRoleStatements:
-    #NOTE! - remove할때 lambda ENI Interface를 제거하지 못해서 블럭당하고 있을때, EC2 콘솔에서 강제 지우기 하면 됨!.. (VPC 안쓰면 관계 없음!)
+    # Basic setting without VPC configuration.
     - Effect: Allow
       Action:
-        - cloudwatch:PutMetricData
         - lambda:InvokeFunction
-        - ec2:CreateNetworkInterface
-        - ec2:DescribeNetworkInterfaces
-        - ec2:AttachNetworkInterface
-        - ec2:DescribeNetworkInterfaces
-        - ec2:DeleteNetworkInterface
-        - ec2:DetachNetworkInterface
-        - ec2:ModifyNetworkInterfaceAttribute
-        - ec2:ResetNetworkInterfaceAttribute
         - SNS:GetEndpointAttributes
+        - cloudwatch:PutMetricData
       Resource: "*"
-    # IAM/STS - For VPC, Use static ARN Name for 'lemon-hello-api'.
+    # IAM/STS - For VPC, Use static ARN Name for 'eureka-hello-api'.
     - Effect: "Allow"
       Action:
         - iam:GetUser
         - sts:GetCallerIdentity
       Resource: "*"
-    # SQS
+    # SQS to receive the queue job
     - Effect: "Allow"
       Action:
         - sqs:SendMessage
         - sqs:DeleteMessage
         - sqs:ReceiveMessage
       Resource: "arn:aws:sqs:${opt:region, self:provider.region}:*:${self:custom.queueName.${self:custom.CORE.stage}}"
-    # SNS
+    # SNS to receive the notification.
     - Effect: "Allow"
       Action:
         - sns:Publish
       Resource: ${self:custom.topicArn}
-    # S3
-    - Effect: "Allow"
-      Action:
-        - s3:GetObject
-        - s3:PutObject
-      Resource: "arn:aws:s3:::${self:custom.bucketName.${self:custom.CORE.stage}}/*"
-    # KMS
+    # KMS to verify the identity
     - Effect: Allow
       Action:
-        - kms:Decrypt
-        - kms:Encrypt
         - kms:Verify
-      Resource: "arn:aws:kms:${self:provider.region}:*:key/${self:custom.CONF.${self:custom.CORE.profile}.kmsKey, ''}"   #TODO - improve resource setting.
-    # DynamoDB (ModelTable)
+      Resource: "arn:aws:kms:${self:provider.region}:*:key/${self:custom.CONF.${self:custom.CORE.profile}.kmsKey, ''}"
+    # DynamoDB to store the models
     - Effect: Allow
       Action:
         - dynamodb:Query
@@ -186,9 +162,7 @@ provider:
   # WARN! - 환경변수에는 object/null 으로 설정할 수 없음.
   environment:
     DEFAULT_REGION: '${self:provider.region}'
-    REPORT_ERROR_ARN: 'arn:aws:sns:${self:provider.region}:${aws:accountId}:lemon-hello-sns'
     MY_DYNAMO_TABLE: '${self:custom.tableName.${self:custom.CORE.stage}}'
-    MY_S3_BUCKET: '${self:custom.bucketName.${self:custom.CORE.stage}}'
     MY_SQS_ENDPOINT: 'https://sqs.${self:provider.region}.amazonaws.com/${aws:accountId}/${self:custom.queueName.${self:custom.CORE.stage}}' # see `sqs-service`
     MY_SNS_ENDPOINT: 'arn:aws:sns:${self:provider.region}:${aws:accountId}:${self:custom.topicName.${self:custom.CORE.stage}}'               # see `sns-service`
     $<<: ${file(./env/${self:custom.CONF.${self:custom.CORE.profile}.env}):${self:custom.CORE.stage}}
@@ -222,7 +196,8 @@ functions:
             Fn::GetAtt:
               - MyQueue
               - Arn
-          batchSize: 1              # the maximum number of SQS messages that AWS will send to your Lambda function on a single trigger. (default: 10)
+          # the maximum number of SQS messages that AWS will send to your Lambda function on a single trigger. (default: 10)
+          batchSize: 1
   #WARN - must use `lambda` as name for `lemon-protocol`.
   lambda:
     handler: handler.lambda     # use core `lambda-handler`.
@@ -236,12 +211,8 @@ functions:
           cors: ${self:custom.cors, true}
           documentation:
             summary: "show service name and version"
-      - http:
-          path: /
-          method: post
-          cors: ${self:custom.cors, true}
       # -------------------------------------------------------
-      # REST API : /hello
+      # REST API : /hello (public)
       - http:
           path: /hello
           method: get
@@ -386,58 +357,3 @@ resources:
       Type: 'AWS::SNS::Topic'
       Properties:
         TopicName: '${self:custom.topicName.${self:custom.CORE.stage}}'
-
-    # -------------------------------
-    # S3 Bucket
-    # -------------------------------
-    MyS3Bucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        ### No more AccessControl
-        # AccessControl: PublicRead
-        ###  replace it with...
-        PublicAccessBlockConfiguration:
-          BlockPublicAcls: false
-        OwnershipControls:
-          Rules:
-            - ObjectOwnership: ObjectWriter
-        BucketName: ${self:custom.bucketName.${self:custom.CORE.stage}}
-        WebsiteConfiguration:
-          IndexDocument: index.html
-        CorsConfiguration:
-            CorsRules:
-              -
-                AllowedOrigins:
-                  - '*'
-                AllowedHeaders:
-                  - '*'
-                AllowedMethods:
-                  - GET
-                  - HEAD
-                MaxAge: 3000
-
-    # -------------------------------
-    # S3 Bucket
-    # -------------------------------
-    MyS3BucketPolicy:
-      Type: AWS::S3::BucketPolicy
-      Properties:
-        Bucket:
-          Ref: MyS3Bucket
-        PolicyDocument:
-          Statement:
-            - Sid: PublicReadGetObject
-              Effect: Allow
-              Principal: "*"
-              Action:
-                - s3:GetObject
-              Resource:
-                Fn::Join: [
-                  "", [
-                    "arn:aws:s3:::",
-                    {
-                      "Ref": "MyS3Bucket"
-                    },
-                    "/*"
-                  ]
-                ]
