@@ -100,7 +100,7 @@ custom:
 #------------------------------------------------
 provider:
   name: aws
-  #NOTE - use the default profile.
+  #NOTE - use the default profile. (`none` 일때는 아래의 profile 설정이 없어야됨!)
   # profile: ${param:profile, 'none'}
   stage: ${opt:stage, 'dev'}
 
