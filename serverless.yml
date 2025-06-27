@@ -8,7 +8,6 @@ service: eureka-hello-api
 frameworkVersion: "3"
 
 plugins:
-  - serverless-offline
   - serverless-aws-documentation
   - serverless-prune-plugin
   - serverless-plugin-log-retention
