@@ -1,5 +1,9 @@
 # eureka-hello-api env settings
+# - default settings used across most projects
 
+#==============================================
+# env
+#==============================================
 env:
   LS:
     required: true
@@ -20,7 +24,7 @@ env:
     required: true
     type: string
     defaultValue: none
-    description: '프로젝트 프로필 이름 - 예: lemon'
+    description: '프로젝트 프로필 이름 - 예: none'
   STAGE:
     required: true
     type: string
@@ -38,6 +42,9 @@ env:
     type: string
     description: '연동할 SQS 엔드포인트 또는 설정'
 
+#==============================================
+# config
+#==============================================
 config:
   name:
     required: true
@@ -55,8 +62,6 @@ config:
   region:
     required: true
     type: string
-    options:
-      - ap-northeast-2
     defaultValue: ap-northeast-2
     description: 'AWS 리전'
   env:
