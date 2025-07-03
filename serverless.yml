@@ -8,7 +8,8 @@ service: eureka-hello-api
 frameworkVersion: "3"
 
 plugins:
-  - serverless-offline
+  #WARN - failure in nodejs 22.x due to `serverless-offline` plugin @250627
+  # - serverless-offline
   - serverless-aws-documentation
   - serverless-prune-plugin
   - serverless-plugin-log-retention
@@ -99,6 +100,7 @@ custom:
 #------------------------------------------------
 provider:
   name: aws
+  #NOTE - use the default profile. (`none` 일때는 아래의 profile 설정이 없어야됨!)
   # profile: ${param:profile, 'none'}
   stage: ${opt:stage, 'dev'}
 
