@@ -2,9 +2,9 @@
 # - default settings used across most projects
 
 #==============================================
-# env
+# environ
 #==============================================
-env:
+environ:
   LS:
     required: true
     type: boolean
