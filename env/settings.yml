@@ -9,25 +9,25 @@ environ:
     isRequired: 1
     type: boolean
     defaultValue: 0
-    description: '로그 숨김 여부 설정 (0: 해제, 1: 활성화)'
+    description: 'Hide logs (0: disabled, 1: enabled)'
     redeploy: 1
   LC:
     isRequired: 1
     type: boolean
     defaultValue: 1
-    description: '로그 컬러링 여부 설정 (0: 해제, 1: 활성화)'
+    description: 'Enable log coloring (0: disabled, 1: enabled)'
     redeploy: 1
   TS:
     isRequired: 1
     type: boolean
     defaultValue: 1
-    description: '로그 타임스탬프 여부 설정 (0: 해제, 1: 활성화)'
+    description: 'Include timestamp in logs (0: disabled, 1: enabled)'
     redeploy: 1
   NAME:
     isRequired: 1
     type: string
-    defaultValue: none
-    description: '프로젝트 프로필 이름 - 예: none'
+    defaultValue: temp
+    description: 'Project profile name - e.g., lemon'
   STAGE:
     isRequired: 1
     type: string
@@ -35,17 +35,17 @@ environ:
       - develop
       - production
     defaultValue: develop
-    description: '배포 단계'
+    description: 'Deployment stage'
     immutable: 1
   MY_DYNAMO_TABLE:
     isRequired: 0
     type: string
-    description: '연동에 사용할 DynamoDB 테이블 이름'
+    description: 'Name of the DynamoDB table to use for integration'
     immutable: 1
   SQS_ENDPOINT:
     isRequired: 0
     type: string
-    description: '연동할 SQS 엔드포인트 또는 설정'
+    description: 'SQS endpoint or configuration to integrate'
     immutable: 1
 
 #==============================================
@@ -55,8 +55,8 @@ config:
   name:
     isRequired: 1
     type: string
-    defaultValue: none
-    description: '프로젝트 식별용 이름'
+    defaultValue: temp
+    description: 'Name for project identification'
   runtime:
     isRequired: 1
     type: string
@@ -64,19 +64,19 @@ config:
       - nodejs18.x
       - nodejs22.x
     defaultValue: nodejs18.x
-    description: '실행 환경'
+    description: 'Runtime environment'
     immutable: 1
   region:
     isRequired: 1
     type: string
     defaultValue: ap-northeast-2
-    description: 'AWS 리전'
+    description: 'AWS region'
     immutable: 1
   env:
     isRequired: 1
     type: string
-    defaultValue: ${NAME}.yml
-    description: 'env 파일 이름'
+    defaultValue: temp.yml
+    description: 'Name of the env file; should match the project name'
   stage:
     isRequired: 1
     type: string
@@ -84,5 +84,5 @@ config:
       - dev
       - prod
     defaultValue: dev
-    description: '배포 단계'
+    description: 'Deployment stage'
     immutable: 1
