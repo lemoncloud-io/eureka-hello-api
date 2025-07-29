@@ -8,19 +8,19 @@ environ:
   LS:
     isRequired: 1
     type: boolean
-    defaultValue: '0'
+    defaultValue: 0
     description: '로그 숨김 여부 설정 (0: 해제, 1: 활성화)'
     redeploy: 1
   LC:
     isRequired: 1
     type: boolean
-    defaultValue: '1'
+    defaultValue: 1
     description: '로그 컬러링 여부 설정 (0: 해제, 1: 활성화)'
     redeploy: 1
   TS:
     isRequired: 1
     type: boolean
-    defaultValue: '1'
+    defaultValue: 1
     description: '로그 타임스탬프 여부 설정 (0: 해제, 1: 활성화)'
     redeploy: 1
   NAME:
