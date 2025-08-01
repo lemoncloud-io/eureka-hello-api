@@ -28,6 +28,7 @@ environ:
     type: string
     defaultValue: temp
     description: 'Project profile name - e.g., lemon'
+    isHidden: 1
   STAGE:
     isRequired: 1
     type: string
@@ -36,6 +37,7 @@ environ:
       - production
     defaultValue: develop
     description: 'Deployment stage'
+    isHidden: 1
     immutable: 1
   MY_DYNAMO_TABLE:
     isRequired: 0
@@ -57,6 +59,7 @@ config:
     type: string
     defaultValue: temp
     description: 'Name for project identification'
+    isHidden: 1
   runtime:
     isRequired: 1
     type: string
@@ -77,6 +80,7 @@ config:
     type: string
     defaultValue: temp.yml
     description: 'Name of the env file; should match the project name'
+    isHidden: 1
   stage:
     isRequired: 1
     type: string
