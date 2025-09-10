@@ -64,9 +64,8 @@ config:
     isRequired: 1
     type: string
     options:
-      - nodejs18.x
       - nodejs22.x
-    defaultValue: nodejs18.x
+    defaultValue: nodejs22.x
     description: 'Runtime environment'
     immutable: 1
   region:
