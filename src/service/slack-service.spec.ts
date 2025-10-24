@@ -55,5 +55,7 @@ describe('slack-service /w dummy', () => {
             name: 'default',
             channel: 'x',
         });
+
+        expect2(await service.default()).toEqual({ id: 'public' });
     });
 });

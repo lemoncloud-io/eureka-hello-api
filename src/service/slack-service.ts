@@ -8,9 +8,52 @@
  *
  * @copyright (C) lemoncloud.io 2025 - All Rights Reserved. (https://eureka.codes)
  */
-import { $U, _log } from 'lemon-core';
-import { SlackChannelModel, StorageSupportable } from './slack-types';
+import $cores, { $T, $U, _err, _inf, _log, GETERR } from 'lemon-core';
+import { AWSS3Service, SlackAttachment, SlackPostBody } from 'lemon-core';
+import { RouteRule, SlackChannelModel, StorageSupportable } from './slack-types';
 const NS = $U.NS('slack', 'blue'); // NAMESPACE TO BE PRINTED.
+
+//* import dependency
+import https from 'https';
+import url from 'url';
+
+/**
+ * interface: `PostResponse`
+ * - response from postMessage
+ */
+export interface PostResponse {
+    /** body in json string */
+    body?: string;
+    /** status code */
+    statusCode: number;
+    /** status message */
+    statusMessage: string;
+}
+
+/**
+ * interface: `SlackMessage`
+ * - slack message interface
+ */
+export interface SlackMessage extends SlackPostBody {
+    /**
+     * the target channel name to be posted.
+     * - if null, then send to default channel which was created in Slack App.
+     * - if specified, then send message to this channel.
+     */
+    channel?: string;
+}
+
+/**
+ * extract only the defined attribute.
+ * ex) `{ a:1, b: undefined }` -> `{ a:1 }`
+ */
+export const onlyDefined = <T>(N: T, def: T = null) =>
+    N && typeof N === 'object'
+        ? Object.entries(N).reduce<T>((N, [k, v]) => {
+              if (v !== undefined) N[k as keyof T] = v;
+              return N;
+          }, {} as T)
+        : def;
 
 /**
  * class: `SlackService`
@@ -22,7 +65,15 @@ export class SlackService {
      *
      * @param $channel storage supportable for slack channel model.
      */
-    public constructor(public readonly $channel: StorageSupportable<SlackChannelModel>) {
+    public constructor(
+        public readonly $channel: StorageSupportable<SlackChannelModel>,
+        public readonly options?: {
+            /** current time for testing */
+            current?: number;
+            /** (optional) S3 service for message storage */
+            $s3s?: AWSS3Service;
+        },
+    ) {
         if (!$channel) throw new Error(`$channel (StorageSupportable<SlackChannelModel>) is required - SlackService()`);
     }
 
@@ -44,4 +95,293 @@ export class SlackService {
         }
         return $org;
     }
+
+    /**
+     * load the default channel model (no auto create)
+     * 1. try to load channel by id
+     * 2. make sure `endpoint` is filled by env variable if not exist.
+     */
+    public async default(id?: string): Promise<SlackChannelModel> {
+        id = id || 'public';
+        const $model = await this.channel(id);
+        const envName = `SLACK_${id.toUpperCase()}`;
+        const endpoint = $model?.endpoint ?? $cores.cores.config.config.get(envName);
+        return onlyDefined<SlackChannelModel>({ ...$model, id, endpoint });
+    }
+
+    /** route the slack body to target */
+    public async route(
+        body: SlackMessage,
+        options?: {
+            /** target channel to send the message */
+            channel?: string;
+            /** all targets to send the message */
+            targets?: string[];
+            /** default parent */
+            parent?: SlackChannelModel;
+        },
+    ): Promise<number> {
+        const channel = options?.channel ?? body?.channel;
+        const targets = options?.targets || [];
+        _log(NS, `>> route(${channel})`);
+
+        //* check of end-of-routing
+        if (targets?.includes(channel)) {
+            return this.send(body, { ...options, channel });
+        }
+
+        const _route = (body: SlackMessage, channel: string) => {
+            return this.route(body, { ...options, channel, targets: [...targets] });
+        };
+
+        //* apply rules.
+        let sent = 0;
+        const $ch = await this.channel(channel);
+        const rules = $ch?.rules || [];
+        for (const i in rules) {
+            const rule = rules[i];
+            _log(NS, `>> rule[${channel}:${i}] =`, $U.json(rule));
+            const matched = this.match(body, rule);
+            if (matched) {
+                _log(NS, `>> match[${channel}:${i}] =`, $U.json(matched));
+                //- duplicate also to other channel
+                if (rule.copyTo && !targets.includes(rule.copyTo)) {
+                    targets.push(rule.copyTo);
+                    sent += await _route(matched, rule.copyTo);
+                }
+                //- forward to specific channel
+                if (rule.moveTo && !targets.includes(rule.moveTo)) {
+                    targets.push(rule.moveTo);
+                    sent += await _route(matched, rule.moveTo);
+                    // break here.
+                    return sent;
+                }
+            }
+        }
+
+        //* send via this channel.
+        if (channel && !targets.includes(channel)) {
+            targets.push(channel);
+            sent += await _route(body, channel);
+        }
+
+        //* returns.
+        return sent;
+    }
+
+    /** test if pattern is matched */
+    public match(body: SlackMessage, rule: RouteRule): SlackMessage {
+        const pattern = `${rule?.pattern || ''}`;
+        const _test = (text: string): boolean => {
+            if (!pattern || typeof text !== 'string') return false;
+            if (pattern.startsWith('#')) return text.includes(pattern);
+            if (pattern.startsWith('/') && pattern.endsWith('/')) {
+                const re = new RegExp(pattern.substring(1, pattern.length - 2), 'g');
+                return re.test(text);
+            }
+            //* default is word matching
+            if (text.includes(pattern)) return true;
+            return text.split(' ').includes(pattern);
+        };
+        const matched = body.attachments?.reduce<SlackAttachment[]>((L, N) => {
+            if (
+                (N?.text && _test(N.text)) ||
+                (N?.title && _test(N.title)) ||
+                (N?.pretext && _test(N.pretext)) ||
+                (N?.footer && _test(N.footer)) ||
+                false
+            ) {
+                if (rule.color) {
+                    L.push({ ...N, color: rule.color });
+                } else {
+                    L.push(N);
+                }
+            }
+            return L;
+        }, []);
+        if (matched?.length > 0) {
+            return {
+                ...body,
+                attachments: matched,
+            };
+        }
+        return;
+    }
+
+    /**
+     * send message to specific channel
+     * 1. find `channel-model` by id
+     * 2. if body has `channel`, then keep the channel.
+     * 3. if options.channel is specified, then override the channel.
+     */
+    public async send(
+        body: SlackMessage,
+        options?: {
+            /** (optional) target channel id to use. (overrides `body.channel`) */
+            channel?: string;
+            /** (optional) parent channel to use. (or use `public` as default) */
+            parent?: SlackChannelModel;
+            /** (optional) flag to send directly to endpoint w/o saving S3 */
+            direct?: boolean;
+        },
+    ): Promise<number> {
+        const errScope = `slack.send(${body?.channel ?? ''}, ${options?.channel ?? ''})`;
+        _inf(NS, `>> ${errScope}`);
+        const direct = options?.direct ?? false;
+        const target = options?.channel ? await this.default(options.channel) : null;
+        const parent = options?.parent ?? (await this.default());
+        const endpoint = target?.endpoint || parent?.endpoint;
+        const channel = options?.channel ?? body?.channel ?? undefined;
+
+        const asBool = (a: any): boolean => (a === undefined || a === null || a === '' ? undefined : !!a);
+        const isDirect = !direct && endpoint?.startsWith('https://hooks.slack.com');
+        const isUseS3 = asBool(target?.useS3 ?? parent?.useS3);
+        const $msg = isDirect && body ? await this.saveMessageToS3(body, isUseS3) : body;
+        const message: SlackMessage = onlyDefined<SlackMessage>({
+            ...$msg,
+            channel,
+        });
+
+        //* send via endpoint.
+        if (endpoint?.startsWith('http://') || endpoint?.startsWith('https://')) {
+            const sent = await this.postMessage(endpoint, message).catch<PostResponse>(e => {
+                _err(NS, `! err.send:${channel ?? ''} =`, e);
+                return { statusCode: 500, statusMessage: GETERR(e) };
+            });
+            _log(NS, `>> sent:${channel ?? ''} =`, $U.json(sent));
+            return sent?.statusCode == 200 ? 1 : 0;
+        }
+        return 0;
+    }
+
+    /**
+     * save message data into S3.
+     */
+    public saveMessageToS3 = async (message: SlackMessage, isUseS3?: boolean): Promise<SlackMessage> => {
+        _log(NS, `saveMessageToS3()...`);
+        const SLACK_PUT_S3 = $U.env('SLACK_PUT_S3', '1') as string;
+        isUseS3 = isUseS3 ?? !!$U.N(SLACK_PUT_S3, 0);
+        const attachments: SlackAttachment[] = message?.attachments || [];
+        const isSlackMessage = (message: any): message is SlackMessage =>
+            Array.isArray(attachments) && attachments.length > 0;
+
+        //* if put to s3, then filter attachments
+        if (isUseS3 && isSlackMessage(message)) {
+            const attachment = attachments[0];
+            const pretext = $T.S(attachment.pretext, '');
+            const title = $T.S(attachment.title, '');
+            const color = $T.S(attachment.color, 'green');
+            const thumb_url = attachment.thumb_url ? attachment.thumb_url : undefined;
+            const image_url = attachment.image_url ? attachment.image_url : undefined;
+            _log(NS, `> title[${pretext}] =`, title);
+            const saves = { ...message };
+            saves.attachments = attachments.map((N: any) => {
+                //* convert internal data.
+                N = { ...N }; // copy.
+                const text = typeof N.text === 'string' ? N.text : `${N.text || ''}`;
+                try {
+                    if (text.startsWith('{') && text.endsWith('}')) N.text = JSON.parse(N.text);
+                    if (N.text && N.text['stack-trace'] && typeof N.text['stack-trace'] == 'string')
+                        N.text['stack-trace'] = N.text['stack-trace'].split('\n');
+                } catch (e) {
+                    _err(NS, '> WARN! ignored =', e);
+                }
+                return N;
+            });
+
+            //* choose the icon.
+            // eslint-disable-next-line prettier/prettier
+            const MOONS =
+                ':new_moon:,:waxing_crescent_moon:,:first_quarter_moon:,:moon:,:full_moon:,:waning_gibbous_moon:,:last_quarter_moon:,:waning_crescent_moon:'.split(
+                    ',',
+                );
+            const now = this.options?.current ? new Date(this.options?.current) : new Date();
+            let hour = now.getHours() + now.getMinutes() / 60.0 + 1.0;
+            hour = hour >= 24 ? hour - 24 : hour;
+            const tag = MOONS[Math.floor((MOONS.length * hour) / 24)];
+            const json = $U.json(saves);
+            const bucket = this.options?.$s3s?.bucket();
+
+            // ignore
+            if (!bucket) return message;
+
+            // _log(NS, `> json =`, json);
+            return this.options?.$s3s
+                .putObject(json)
+                .then(res => {
+                    const { Bucket, Key, Location } = res;
+                    _inf(NS, `> uploaded[${Bucket}/${Key}] =`, $U.json(res));
+                    const link = Location;
+                    //* change btwn title & pretext.
+                    const _pretext = title?.startsWith('error-report') ? title : pretext;
+                    const text = title?.startsWith('error-report') ? pretext : title;
+                    const tag0 = `${text}`.startsWith('#error') ? ':rotating_light:' : '';
+                    message.attachments = [
+                        onlyDefined<SlackAttachment>({
+                            pretext: _pretext,
+                            text: `<${link}|${tag0 || tag || '*'}> ${text}`,
+                            color,
+                            mrkdwn: true,
+                            mrkdwn_in: ['pretext', 'text'],
+                            thumb_url,
+                            image_url,
+                        }),
+                    ];
+                    return message;
+                })
+                .catch(e => {
+                    _err(NS, 'WARN! internal.err =', e);
+                    message.attachments.push({
+                        pretext: `**WARN** internal error in \`lemon-hello-api\` to \`${bucket}\``,
+                        color: 'red',
+                        title: `${e.message || e.reason || e.error || e}: ${e.stack || ''}`,
+                    });
+                    return message;
+                });
+        }
+        return message;
+    };
+
+    /**
+     * POST message to hookUrl.
+     *
+     * @param {*} hookUrl       URL
+     * @param {*} message       Object or String.
+     */
+    public postMessage = async (hookUrl: string, message: any): Promise<PostResponse> => {
+        _log(NS, `> postMessage = hookUrl[${hookUrl}]`);
+        message = typeof message == 'object' && message instanceof Promise ? await message : message;
+        _log(NS, `> message = `, $U.json(message));
+
+        //TODO - improve `url.parse()` due to deprecated.
+        const options: any = url.parse(hookUrl);
+        const body = (typeof message == 'string' ? message : JSON.stringify(message)) || '';
+        options.method = 'POST';
+        options.headers = {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Length': Buffer.byteLength(body),
+        };
+        return new Promise((resolve, reject) => {
+            const postReq = https.request(options, res => {
+                const chunks: any[] = [];
+                res.setEncoding('utf8');
+                res.on('data', chunk => chunks.push(chunk));
+                res.on('end', () => {
+                    const body = chunks.join('');
+                    const statusCode = res.statusCode || 200;
+                    const statusMessage = res.statusMessage || '';
+                    const result = { body, statusCode, statusMessage };
+                    _log(NS, `> post(${hookUrl}) =`, $U.json(result));
+                    if (statusCode < 400) {
+                        resolve(result);
+                    } else {
+                        reject(result);
+                    }
+                });
+                return res;
+            });
+            postReq.write(body);
+            postReq.end();
+        });
+    };
 }

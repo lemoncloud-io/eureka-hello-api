@@ -81,4 +81,9 @@ export interface SlackChannelModel {
      * target address (URL)
      */
     endpoint?: string;
+
+    /**
+     * flag to use S3 for message body storage.
+     */
+    useS3?: boolean;
 }
