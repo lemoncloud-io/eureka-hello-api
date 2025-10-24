@@ -14,7 +14,6 @@ import { GETERR, NextMode, STAGE, asyncCredentials, createSigV4Proxy, expect2 } 
 //* import main models and service.
 import { Model, ModelType, TestModel } from './hello-model';
 import { HelloService } from './hello-service';
-import { MessagePayload } from './types';
 
 interface CrendentialForAWS {
     accessKeyId: string;
