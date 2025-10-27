@@ -161,7 +161,7 @@ export class SlackService {
         const $model = await this.channel(channel);
         const envName = `SLACK_${channel.toUpperCase()}`;
         const endpoint = $model?.endpoint ?? $cores.cores.config.config.get(envName)?.trim();
-        return onlyDefined<SlackChannelModel>({ ...$model, channel, endpoint });
+        return onlyDefined<SlackChannelModel>({ ...$model, channel: $model?.channel ?? channel, endpoint });
     }
 
     /**
@@ -303,7 +303,16 @@ export class SlackService {
         const $msg = isDirect && body ? await this.saveMessageToS3(body, isUseS3) : body;
         const message: SlackMessage = onlyDefined<SlackMessage>({
             ...$msg,
-            channel: channel === null || channel === '' ? undefined : !target ? body?.channel : channel,
+            channel:
+                channel === null || channel === ''
+                    ? undefined
+                    : target
+                    ? channel
+                    : body?.channel
+                    ? body?.channel
+                    : channel
+                    ? channel
+                    : undefined,
         });
 
         //* send via endpoint.

@@ -52,6 +52,7 @@ export class HelloService extends CoreService<Model, ModelType> {
                     return null;
                 }
                 public async save(id: string, data?: SlackChannelModel): Promise<SlackChannelModel> {
+                    if (data === null) return thiz.$test.delete(`@${id}`, true);
                     const $org = await this.read(id);
                     const meta$ = { ...$org, ...data };
                     const result = await thiz.$test.save(`@${id}`, { meta$ });

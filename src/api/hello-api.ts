@@ -9,12 +9,13 @@
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
 import $cores, { $T, $U, _log, _inf, NextHandler, NextContext } from 'lemon-core';
-import { GeneralWEBController, $info } from 'lemon-core';
+import { GeneralWEBController, $info, onlyDefined } from 'lemon-core';
 import { Model, TestModel } from '../service/hello-model';
 import $service, { HelloService } from '../service/hello-service';
 import { SlackResponse, SlackMessage, SlackTransformer } from '../service/slack-service';
 import { ALBNextHandler } from 'lemon-core/dist/cores/lambda/lambda-alb-handler';
 import { PostSnsBody, PostSqsBody, MessagePayload } from '../service/views';
+import { SlackChannelModel } from '../service/slack-types';
 const NS = $U.NS('hello', 'yellow'); // NAMESPACE TO BE PRINTED.
 
 /**
@@ -215,6 +216,43 @@ export class HelloAPIController extends GeneralWEBController {
 
         // send to slack.
         return this.doPostSlack(channel, { ...$param }, body, $ctx);
+    };
+
+    /**
+     * Save data of channel.
+     * - if body is null, then delete.
+     *
+     * ```sh
+     * $ http :8000/hello/public/channel name=public
+     * $ http :8000/hello/public/channel channel=
+     */
+    public doGetChannel: NextHandler = async (id, param, body, context) =>
+        this.doPostChannel(id, param, undefined, context);
+    public doPostChannel: NextHandler = async (id, param, body, context) => {
+        const errScope = `doPostChannel(${this.type()}/${id ?? ''})`;
+        _log(NS, `${errScope} ...`);
+        id = id === '0' ? null : $T.S2(id);
+        if (!id) throw new Error(`@id (string) is required - ${errScope}`);
+        _log(NS, `> body =`, $U.json(body));
+        const isGet = !body;
+
+        const isLocal = context?.domain === 'localhost';
+        const $org = await this.service.$slack.default(id);
+        if (isGet) {
+            if (!$org) throw new Error(`404 NOT FOUND - no channel data @${errScope}`);
+            return { ...$org, endpoint: !isLocal ? $org?.endpoint?.substring(0, 12) : $org?.endpoint };
+        }
+
+        // build model to update.
+        const model = onlyDefined<SlackChannelModel>({
+            channel: body?.channel !== undefined ? $T.S2(body?.channel) : undefined,
+            name: body?.name !== undefined ? $T.S2(body?.name) : undefined,
+            endpoint: body?.endpoint !== undefined ? $T.S2(body?.endpoint) : undefined,
+            useS3: body?.useS3 !== undefined ? !!$T.B(body?.useS3) : undefined,
+        });
+
+        // update (or delete)
+        return await this.service.$slack.$channel.save(id, body?.channel === '' ? null : { ...$org, ...model });
     };
 
     /**

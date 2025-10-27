@@ -81,7 +81,7 @@ describe('slack-service /w dummy', () => {
             //* determine the channel in order: param.channel > message.channel > default.channel
             expect2(await service.send({ text: 'hello' })).toEqual({
                 channel: 'public',
-                $sent: { statusCode: 100, statusMessage: 'ok', body: { text: 'hello' } },
+                $sent: { statusCode: 100, statusMessage: 'ok', body: { channel: 'public', text: 'hello' } },
                 endpoint,
             });
             expect2(await service.send({ text: 'hello' }, { channel: 'test' })).toEqual({
