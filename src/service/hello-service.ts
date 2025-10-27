@@ -8,72 +8,13 @@
  *
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
-import $cores, { $T, $U, _log, NextContext, $info, $protocol, NUL404 } from 'lemon-core';
-import { CoreManager, CoreService, GeneralItem, SlackPostBody, AWSS3Service } from 'lemon-core';
+import $cores, { $T, $U, _log, NextContext, $protocol, NUL404 } from 'lemon-core';
+import { CoreManager, CoreService, GeneralItem, AWSS3Service } from 'lemon-core';
 import { $FIELD, Model, ModelType, TestModel } from './hello-model';
 import { MessagePayload } from './types';
 import { SlackService } from './slack-service';
 import { SlackChannelModel, StorageSupportable } from './slack-types';
 const NS = $U.NS('hello', 'blue'); // NAMESPACE TO BE PRINTED.
-
-/**
- * record-data
- */
-export interface RecordData<T = any, U = any> {
-    subject?: string;
-    data?: T;
-    context?: U;
-}
-
-/**
- * notification-param
- */
-export interface NotificationParam {
-    service?: string;
-    stage?: string;
-    event?: string;
-    type?: string;
-    data?: { accountId?: string; provider?: string };
-}
-
-/**
- * bind-param-of-slack
- */
-export interface BindParamOfSlack {
-    pretext?: string;
-    title?: string;
-    text?: string;
-    fields?: string[];
-    color?: string;
-    username?: string;
-}
-
-/**
- * param-to-slack
- */
-export interface ParamToSlack {
-    channel?: string;
-    body?: SlackPostBody;
-}
-
-/**
- * payload of message from SNS.
- * see `doReportSlack()` in `lemon-core`.
- */
-export interface PayloadOfReportSlack {
-    channel: string;
-    service: string;
-    // eslint-disable-next-line @typescript-eslint/ban-types
-    param: {};
-    body: SlackPostBody;
-    context: {
-        stage: string;
-        apiId: string;
-        resourcePath: string;
-        identity: string;
-        domainPrefix: string;
-    };
-}
 
 /**
  * class: `HelloService`
@@ -93,13 +34,14 @@ export class HelloService extends CoreService<Model, ModelType> {
         super(tableName);
         _log(NS, `HelloService(${this.tableName}, ${this.NS})...`);
         this.$test = new MyTestManager(this);
+
+        type MyModel = TestModel<SlackChannelModel>;
         // support s3 to store large message body.
         const _s3 = (): AWSS3Service => {
             const EP = $U.env('MY_S3_BUCKET');
             if (EP) return $cores.cores.aws.s3;
             return null;
         };
-        type MyModel = TestModel<SlackChannelModel>;
         // support for slack data.
         const _db = (thiz: HelloService) =>
             new (class MyChannel implements StorageSupportable<SlackChannelModel> {
@@ -124,118 +66,6 @@ export class HelloService extends CoreService<Model, ModelType> {
      * hello.
      */
     public hello = () => `hello-service`;
-
-    /**
-     * post to slack channel(default is public).
-     */
-    public packageWithChannel =
-        (channel: string) =>
-        (
-            pretext = '',
-            title = '',
-            text = '',
-            fields: (string | { title: string; value: string })[] = [],
-            color = '',
-            username = '',
-        ): ParamToSlack => {
-            _log(NS, `packageWithChannel(${channel})...`);
-            channel = `${channel || 'public'}`;
-            color = `${color || '#FFB71B'}`;
-            username = `${username || 'hello-alarm'}`;
-            _log(NS, `> param[${channel}] =`, $U.json({ pretext, title, color, username }));
-            const { service, version, stage } = $info();
-
-            //* build attachment.
-            const ts = Math.floor(new Date().getTime() / 1000);
-            const fields2 = fields.map((field, i) =>
-                typeof field === 'string'
-                    ? { title: `${field || ''}`.split('/')[0] || `${i + 1}`, value: field }
-                    : { ...(field as any) },
-            );
-            const footer = `${service}/${stage}#${version}`;
-            const attachment = { username, color, pretext, title, text, ts, fields: fields2, footer };
-
-            //* build body for slack, and call
-            const body = { attachments: [attachment] };
-            return { channel, body };
-        };
-
-    /**
-     * post to slack default channel.
-     */
-    public packageDefaultChannel = ({ pretext, title, text, fields, color, username }: BindParamOfSlack) => {
-        _log(NS, `packageDefaultChannel()...`);
-        return this.packageWithChannel('')(
-            pretext || '',
-            title || '',
-            text || '',
-            fields || [],
-            color || '',
-            username || '',
-        );
-    };
-
-    /**
-     * convert object to json string.
-     */
-    public asText = (data: any) => {
-        const keys = (data && Object.keys(data)) || [];
-        return keys.length > 0 ? JSON.stringify(data) : '';
-    };
-
-    /**
-     * build simple form for error-report
-     */
-    public buildErrorForm = async ({ subject, data, context }: RecordData): Promise<ParamToSlack> => {
-        _log(`buildErrorForm(${subject})...`);
-        data = data || {};
-        subject = `${subject || ''}`;
-
-        //* get error reason.
-        const channel = subject.indexOf('/')
-            ? subject.split('/', 2)[1]
-            : (data.data && data.data.channel) || data.channel;
-        const message = data.message || data.error;
-        _log(`>> data[${channel || ''}] =`, $U.json(data));
-        const service = (() => {
-            const str = $T.S(data?.service);
-            return str.indexOf('://') > 0 ? str.substring(str.indexOf('://') + 3) : str;
-        })();
-        const title = service ? `error-report: \`${service}\`` : 'error-report';
-
-        return this.packageWithChannel(channel)(message, title, this.asText(data), []);
-    };
-
-    /**
-     * transform to slack-body from SNS Payload.
-     */
-    public buildCommonSlackForm = ({ subject, data, context }: RecordData<PayloadOfReportSlack>): ParamToSlack => {
-        _log(NS, `buildCommonSlackForm(${subject})...`);
-        const $data: PayloadOfReportSlack = { ...data };
-        subject = `${subject || ''}`;
-        _log(NS, `> raw-data[${subject}] =`, $U.json($data));
-
-        //* extract data.
-        const channel = subject.indexOf('/') > 0 ? subject.split('/', 2)[1] : $data.channel || '';
-        const service = `${$data.service || ''}`;
-        const body = $data.body;
-
-        //* add additional attachment about caller context
-        if (!channel.startsWith('!') && context && body?.attachments && Array.isArray(body?.attachments)) {
-            body.attachments.push({
-                pretext: service,
-                fields: [
-                    {
-                        title: 'context',
-                        value: context ? $U.json(context) : '',
-                    },
-                ],
-            });
-        }
-
-        //* returns.
-        return { channel, body };
-    };
 }
 
 /**

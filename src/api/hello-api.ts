@@ -11,8 +11,8 @@
 import $cores, { $T, $U, _log, _inf, NextHandler, NextContext } from 'lemon-core';
 import { GeneralWEBController, $info } from 'lemon-core';
 import { Model, TestModel } from '../service/hello-model';
-import $service, { HelloService, ParamToSlack, RecordData } from '../service/hello-service';
-import { SlackResponse, SlackMessage } from '../service/slack-service';
+import $service, { HelloService } from '../service/hello-service';
+import { SlackResponse, SlackMessage, SlackTransformer } from '../service/slack-service';
 import { ALBNextHandler } from 'lemon-core/dist/cores/lambda/lambda-alb-handler';
 import { PostSnsBody, PostSqsBody, MessagePayload } from '../service/views';
 const NS = $U.NS('hello', 'yellow'); // NAMESPACE TO BE PRINTED.
@@ -184,7 +184,9 @@ export class HelloAPIController extends GeneralWEBController {
     /**
      * process SNS Event and post to Slack
      *
-     * TODO - should implement below code.
+     * ```sh
+     * cat sample/error-1.json | http ':8000/hello/0/event?subject=error'
+     * cat sample/slack-1.json | http ':8000/hello/0/event'
      */
     public doPostEvent: NextHandler = async (id, $param, $body, $ctx) => {
         const errScope = `doPostEvent(${this.type()}/${id ?? ''})`;
@@ -202,25 +204,16 @@ export class HelloAPIController extends GeneralWEBController {
             return '';
         };
         const subject = `${$param?.subject || _1st($body) || ''}`.trim();
-        const noop = (d: RecordData): ParamToSlack =>
-            this.service.packageDefaultChannel({
-                text: $U.json(d),
-                pretext: `post-event`,
-                title: subject || `Unknown event/${id}`,
-            });
 
         //* decode next-chain.
-        const transform: (d: RecordData) => Promise<ParamToSlack> | ParamToSlack = !subject
-            ? noop
-            : subject === 'error' || subject.startsWith('error/')
-            ? this.service.buildErrorForm
-            : subject === 'slack' || subject.startsWith('slack/')
-            ? this.service.buildCommonSlackForm
-            : noop;
+        const transform: SlackTransformer = this.service.$slack.asTransformer(subject);
+        if (!transform) throw new Error(`@transform(${subject}) is not defined - ${errScope}`);
 
         //* transform to slack-body..
         const { channel, body } = await Promise.resolve(transform({ subject, data: $body, context: $ctx }));
         _log(NS, `> body[<${typeof channel}>${channel}] =`, $U.json(body));
+
+        // send to slack.
         return this.doPostSlack(channel, { ...$param }, body, $ctx);
     };
 

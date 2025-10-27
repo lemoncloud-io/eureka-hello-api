@@ -8,8 +8,7 @@
  *
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
-import { loadProfile } from 'lemon-core/dist/environ';
-import { $slack, $U, expect2, GETERR } from 'lemon-core';
+import { expect2, GETERR } from 'lemon-core';
 
 //* import main models and service.
 import { SlackService } from './slack-service';
@@ -47,8 +46,8 @@ export const instance = (options?: { current?: number }) => {
 //*main test body.
 describe('slack-service /w dummy', () => {
     it('should pass hello()', async () => {
-        const PROFILE = loadProfile(process); // override process.env.
-        PROFILE && console.info(`! PROFILE =`, PROFILE);
+        // const PROFILE = loadProfile(process); // override process.env.
+        // PROFILE && console.info(`! PROFILE =`, PROFILE);
         const { service } = instance();
         expect2(() => service?.hello()).toEqual('slack-service:dummy-channel-storage');
 
@@ -67,7 +66,7 @@ describe('slack-service /w dummy', () => {
         expect2(await service.channel('public').catch(GETERR)).toEqual(null);
         expect2(await service.default()).toEqual({ channel: 'public' });
 
-        //* test send().
+        //* test send() with various channel determination.
         if (1) {
             const endpoint = 'http://example.com/slack';
             expect2(await service.send({ text: 'hello' })).toEqual({

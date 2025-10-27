@@ -8,7 +8,7 @@
  *
  * @copyright (C) lemoncloud.io 2025 - All Rights Reserved. (https://eureka.codes)
  */
-import $cores, { $T, $U, _err, _inf, _log, GETERR } from 'lemon-core';
+import $cores, { $info, $T, $U, _err, _inf, _log, GETERR, NextContext } from 'lemon-core';
 import { AWSS3Service, SlackAttachment, SlackPostBody } from 'lemon-core';
 import { RouteRule, SlackChannelModel, SlackResponse, StorageSupportable } from './slack-types';
 const NS = $U.NS('slack', 'blue'); // NAMESPACE TO BE PRINTED.
@@ -35,6 +35,68 @@ export interface SlackMessage extends Omit<SlackPostBody, 'attachments'> {
     attachments?: SlackAttachment[];
 }
 export { SlackResponse };
+
+/**
+ * record-data
+ */
+export interface RecordData<T = any, U = any> {
+    subject?: string;
+    data?: T;
+    context?: NextContext<U>;
+}
+
+/**
+ * bind-param-of-slack
+ */
+export interface BindParamOfSlack {
+    pretext?: string;
+    title?: string;
+    text?: string;
+    fields?: string[];
+    color?: string;
+    username?: string;
+}
+
+/**
+ * param-to-slack
+ */
+export interface ParamToSlack {
+    /**
+     * (optional) target channel to send in force.
+     */
+    channel?: string;
+    /**
+     * slack message body.
+     */
+    body?: SlackPostBody;
+}
+
+/**
+ * payload of message from SNS.
+ * see `doReportSlack()` in `lemon-core`.
+ */
+export interface PayloadOfReportSlack {
+    channel: string;
+    service: string;
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    param: {};
+    body: SlackPostBody;
+    context: {
+        stage: string;
+        apiId: string;
+        resourcePath: string;
+        identity: string;
+        domainPrefix: string;
+    };
+}
+
+/**
+ * interface: `SlackHandler`
+ * - slack message handler function
+ */
+export interface SlackTransformer<T = any> {
+    ({ subject, data, context }: RecordData<T>): ParamToSlack | Promise<ParamToSlack>;
+}
 
 /**
  * extract only the defined attribute.
@@ -392,5 +454,143 @@ export class SlackService {
             postReq.write(body);
             postReq.end();
         });
+    };
+    /**
+     * post to slack channel(default is public).
+     */
+    public packageWithChannel =
+        (channel: string) =>
+        (
+            pretext = '',
+            title = '',
+            text = '',
+            fields: (string | { title: string; value: string })[] = [],
+            color = '',
+            username = '',
+        ): ParamToSlack => {
+            _log(NS, `packageWithChannel(${channel})...`);
+            channel = `${channel || 'public'}`;
+            color = `${color || '#FFB71B'}`;
+            username = `${username || 'hello-alarm'}`;
+            _log(NS, `> param[${channel}] =`, $U.json({ pretext, title, color, username }));
+            const { service, version, stage } = $info();
+
+            //* build attachment.
+            const ts = Math.floor(new Date().getTime() / 1000);
+            const fields2 = fields.map((field, i) =>
+                typeof field === 'string'
+                    ? { title: `${field || ''}`.split('/')[0] || `${i + 1}`, value: field }
+                    : { ...(field as any) },
+            );
+            const footer = `${service}/${stage}#${version}`;
+            const attachment = { username, color, pretext, title, text, ts, fields: fields2, footer };
+
+            //* build body for slack, and call
+            const body = { attachments: [attachment] };
+            return { channel, body };
+        };
+
+    /**
+     * post to slack default channel.
+     */
+    public packageDefaultChannel = ({ pretext, title, text, fields, color, username }: BindParamOfSlack) => {
+        _log(NS, `packageDefaultChannel()...`);
+        return this.packageWithChannel('')(
+            pretext || '',
+            title || '',
+            text || '',
+            fields || [],
+            color || '',
+            username || '',
+        );
+    };
+
+    /**
+     * convert object to json string.
+     */
+    public asText = (data: any) => {
+        const keys = (data && Object.keys(data)) || [];
+        return keys.length > 0 ? JSON.stringify(data) : '';
+    };
+
+    /**
+     * find the handler by subject.
+     *
+     * @param subject to process.
+     * @returns SlackHandler
+     */
+    public asTransformer(subject: string): SlackTransformer {
+        _log(NS, `asHandler(${subject})...`);
+        if (!subject) return this.$transformer.noop;
+        if (subject === 'error' || subject.startsWith('error/')) return this.$transformer.buildErrorForm;
+        if (subject === 'slack' || subject.startsWith('slack/')) return this.$transformer.buildCommonSlackForm;
+        return this.$transformer.noop;
+    }
+
+    /** handlers */
+    protected $transformer: { [key: string]: SlackTransformer } = {
+        /**
+         * default noop handler
+         */
+        noop: ({ subject, data, context }: RecordData): ParamToSlack => {
+            _log(NS, `noop.handler(${subject})...`);
+            return this.packageDefaultChannel({
+                text: $U.json(data),
+                pretext: `post-event`,
+                title: subject || `Unknown event`,
+            });
+        },
+        /**
+         * build simple form for error-report
+         */
+        buildErrorForm: async ({ subject, data, context }: RecordData): Promise<ParamToSlack> => {
+            _log(`buildErrorForm(${subject})...`);
+            data = data || {};
+            subject = `${subject || ''}`;
+
+            //* get error reason.
+            const channel = subject.indexOf('/')
+                ? subject.split('/', 2)[1]
+                : (data.data && data.data.channel) || data.channel;
+            const message = data.message || data.error;
+            _log(`>> data[${channel || ''}] =`, $U.json(data));
+            const service = (() => {
+                const str = $T.S(data?.service);
+                return str.indexOf('://') > 0 ? str.substring(str.indexOf('://') + 3) : str;
+            })();
+            const title = service ? `error-report: \`${service}\`` : 'error-report';
+
+            return this.packageWithChannel(channel)(message, title, this.asText(data), []);
+        },
+        /**
+         * transform to slack-body from SNS Payload.
+         */
+        buildCommonSlackForm: ({ subject, data, context }: RecordData<PayloadOfReportSlack>): ParamToSlack => {
+            _log(NS, `buildCommonSlackForm(${subject})...`);
+            const $data: PayloadOfReportSlack = { ...data };
+            subject = `${subject || ''}`;
+            _log(NS, `> raw-data[${subject}] =`, $U.json($data));
+
+            //* extract data.
+            const channel = subject.indexOf('/') > 0 ? subject.split('/', 2)[1] : $data.channel || '';
+            const service = `${$data.service || ''}`;
+            const body = $data.body;
+
+            //* add additional attachment about caller context
+            if (context && body?.attachments && Array.isArray(body?.attachments)) {
+                body.attachments.push({
+                    pretext: service,
+                    fields: [
+                        {
+                            title: 'context',
+                            value: context ? $U.json(context) : '',
+                        },
+                    ],
+                });
+            }
+
+            //* returns.
+            return { channel, body };
+        },
     };
 }
