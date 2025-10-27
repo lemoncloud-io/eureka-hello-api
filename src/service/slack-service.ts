@@ -10,25 +10,12 @@
  */
 import $cores, { $T, $U, _err, _inf, _log, GETERR } from 'lemon-core';
 import { AWSS3Service, SlackAttachment, SlackPostBody } from 'lemon-core';
-import { RouteRule, SlackChannelModel, StorageSupportable } from './slack-types';
+import { RouteRule, SlackChannelModel, SlackResponse, StorageSupportable } from './slack-types';
 const NS = $U.NS('slack', 'blue'); // NAMESPACE TO BE PRINTED.
 
 //* import dependency
 import https from 'https';
 import url from 'url';
-
-/**
- * interface: `PostResponse`
- * - response from postMessage
- */
-export interface PostResponse {
-    /** body in json string */
-    body?: string;
-    /** status code */
-    statusCode: number;
-    /** status message */
-    statusMessage: string;
-}
 
 /**
  * interface: `SlackMessage`
@@ -42,6 +29,7 @@ export interface SlackMessage extends SlackPostBody {
      */
     channel?: string;
 }
+export { SlackResponse };
 
 /**
  * extract only the defined attribute.
@@ -102,14 +90,18 @@ export class SlackService {
      * 2. make sure `endpoint` is filled by env variable if not exist.
      */
     public async default(id?: string): Promise<SlackChannelModel> {
-        id = id || 'public';
-        const $model = await this.channel(id);
-        const envName = `SLACK_${id.toUpperCase()}`;
-        const endpoint = $model?.endpoint ?? $cores.cores.config.config.get(envName);
-        return onlyDefined<SlackChannelModel>({ ...$model, id, endpoint });
+        const channel = `${id || 'public'}`;
+        const $model = await this.channel(channel);
+        const envName = `SLACK_${channel.toUpperCase()}`;
+        const endpoint = $model?.endpoint ?? $cores.cores.config.config.get(envName)?.trim();
+        return onlyDefined<SlackChannelModel>({ ...$model, channel, endpoint });
     }
 
-    /** route the slack body to target */
+    /**
+     * route the slack body to target
+     *
+     * @param body SlackMessage to post.
+     */
     public async route(
         body: SlackMessage,
         options?: {
@@ -120,14 +112,17 @@ export class SlackService {
             /** default parent */
             parent?: SlackChannelModel;
         },
-    ): Promise<number> {
+    ): Promise<SlackChannelModel> {
+        const errScope = `slack.route(${body?.channel ?? ''}/${options?.channel ?? ''})`;
+        _inf(NS, `>> ${errScope}`);
+
+        // STEP.0 validate parameters.
         const channel = options?.channel ?? body?.channel;
         const targets = options?.targets || [];
-        _log(NS, `>> route(${channel})`);
 
         //* check of end-of-routing
-        if (targets?.includes(channel)) {
-            return this.send(body, { ...options, channel });
+        if (!channel || targets?.includes(channel)) {
+            return this.send(body, { ...options });
         }
 
         const _route = (body: SlackMessage, channel: string) => {
@@ -135,8 +130,8 @@ export class SlackService {
         };
 
         //* apply rules.
-        let sent = 0;
-        const $ch = await this.channel(channel);
+        let $last: SlackChannelModel = null;
+        const $ch = channel ? await this.channel(channel) : null;
         const rules = $ch?.rules || [];
         for (const i in rules) {
             const rule = rules[i];
@@ -147,14 +142,15 @@ export class SlackService {
                 //- duplicate also to other channel
                 if (rule.copyTo && !targets.includes(rule.copyTo)) {
                     targets.push(rule.copyTo);
-                    sent += await _route(matched, rule.copyTo);
+                    $last = await _route(matched, rule.copyTo);
                 }
+
                 //- forward to specific channel
                 if (rule.moveTo && !targets.includes(rule.moveTo)) {
                     targets.push(rule.moveTo);
-                    sent += await _route(matched, rule.moveTo);
+                    $last = await _route(matched, rule.moveTo);
                     // break here.
-                    return sent;
+                    return $last;
                 }
             }
         }
@@ -162,11 +158,11 @@ export class SlackService {
         //* send via this channel.
         if (channel && !targets.includes(channel)) {
             targets.push(channel);
-            sent += await _route(body, channel);
+            $last = await _route(body, channel);
         }
 
         //* returns.
-        return sent;
+        return $last;
     }
 
     /** test if pattern is matched */
@@ -210,7 +206,7 @@ export class SlackService {
 
     /**
      * send message to specific channel
-     * 1. find `channel-model` by id
+     * 1. find `channel-model` by default('public') as parent.
      * 2. if body has `channel`, then keep the channel.
      * 3. if options.channel is specified, then override the channel.
      */
@@ -224,14 +220,15 @@ export class SlackService {
             /** (optional) flag to send directly to endpoint w/o saving S3 */
             direct?: boolean;
         },
-    ): Promise<number> {
-        const errScope = `slack.send(${body?.channel ?? ''}, ${options?.channel ?? ''})`;
+    ): Promise<SlackChannelModel> {
+        const errScope = `slack.send(${body?.channel ?? ''}/${options?.channel ?? ''})`;
         _inf(NS, `>> ${errScope}`);
         const direct = options?.direct ?? false;
         const target = options?.channel ? await this.default(options.channel) : null;
         const parent = options?.parent ?? (await this.default());
         const endpoint = target?.endpoint || parent?.endpoint;
-        const channel = options?.channel ?? body?.channel ?? undefined;
+        const channel = target?.channel ?? parent?.channel;
+        _log(NS, `>> parent =`, $U.json(parent));
 
         const asBool = (a: any): boolean => (a === undefined || a === null || a === '' ? undefined : !!a);
         const isDirect = !direct && endpoint?.startsWith('https://hooks.slack.com');
@@ -239,19 +236,26 @@ export class SlackService {
         const $msg = isDirect && body ? await this.saveMessageToS3(body, isUseS3) : body;
         const message: SlackMessage = onlyDefined<SlackMessage>({
             ...$msg,
-            channel,
+            channel: channel === null || channel === '' ? undefined : channel,
         });
 
         //* send via endpoint.
-        if (endpoint?.startsWith('http://') || endpoint?.startsWith('https://')) {
-            const sent = await this.postMessage(endpoint, message).catch<PostResponse>(e => {
-                _err(NS, `! err.send:${channel ?? ''} =`, e);
-                return { statusCode: 500, statusMessage: GETERR(e) };
-            });
-            _log(NS, `>> sent:${channel ?? ''} =`, $U.json(sent));
-            return sent?.statusCode == 200 ? 1 : 0;
-        }
-        return 0;
+        const _send = async () => {
+            if (endpoint?.startsWith('http://') || endpoint?.startsWith('https://')) {
+                const $sent = await this.postMessage(endpoint, message).catch<SlackResponse>(e => {
+                    _err(NS, `! err.send:${channel ?? ''} =`, e);
+                    return { statusCode: 500, statusMessage: `${GETERR(e)} - ${errScope}` };
+                });
+                _log(NS, `>> sent:${channel ?? ''} =`, $U.json($sent));
+                return $sent;
+            }
+            return {
+                statusCode: 0,
+                statusMessage: `@endpoint(string) is required in channe[${channel}] - ${errScope}`,
+            };
+        };
+        const $sent = await _send();
+        return onlyDefined<SlackChannelModel>({ ...(target ?? parent), $sent });
     }
 
     /**
@@ -348,7 +352,7 @@ export class SlackService {
      * @param {*} hookUrl       URL
      * @param {*} message       Object or String.
      */
-    public postMessage = async (hookUrl: string, message: any): Promise<PostResponse> => {
+    public postMessage = async (hookUrl: string, message: any): Promise<SlackResponse> => {
         _log(NS, `> postMessage = hookUrl[${hookUrl}]`);
         message = typeof message == 'object' && message instanceof Promise ? await message : message;
         _log(NS, `> message = `, $U.json(message));

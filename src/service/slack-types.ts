@@ -86,4 +86,22 @@ export interface SlackChannelModel {
      * flag to use S3 for message body storage.
      */
     useS3?: boolean;
+
+    /**
+     * (readonly) last sent response.
+     */
+    readonly $sent?: SlackResponse;
+}
+
+/**
+ * interface: `SlackResponse`
+ * - response from slack to post.
+ */
+export interface SlackResponse {
+    /** body in json string */
+    body?: string;
+    /** status code */
+    statusCode: number;
+    /** status message */
+    statusMessage: string;
 }

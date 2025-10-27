@@ -22,7 +22,7 @@ const CONF = (serverless) => {
     return {
         none: {
             name: 'none-app',
-            runtime: 'nodejs18.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
+            runtime: 'nodejs22.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',                           // AWS Region to deploy.
             env: 'none.yml',                                    // Environment definitions.
         },
