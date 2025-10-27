@@ -9,16 +9,16 @@
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
 import { loadProfile } from 'lemon-core/dist/environ';
-import { $slack, expect2, GETERR } from 'lemon-core';
+import { $slack, $U, expect2, GETERR } from 'lemon-core';
 
 //* import main models and service.
 import { SlackService } from './slack-service';
-import { SlackChannelModel, StorageSupportable } from './slack-types';
+import { SlackChannelModel, SlackResponse, StorageSupportable } from './slack-types';
 
 //*create service instance.
 export const instance = (options?: { current?: number }) => {
     const current = options?.current ?? new Date().getTime();
-    const $channel = new (class Channel implements StorageSupportable<SlackChannelModel> {
+    const $channel = new (class implements StorageSupportable<SlackChannelModel> {
         public $map: { [id: string]: SlackChannelModel } = {};
         public hello = () => `dummy-channel-storage`;
         public async read(id: string) {
@@ -32,7 +32,15 @@ export const instance = (options?: { current?: number }) => {
             return $fin;
         }
     })();
-    const service: SlackService = new SlackService($channel);
+    const service: SlackService = new (class extends SlackService {
+        constructor() {
+            super($channel);
+        }
+        /** dummy postMessage */
+        public postMessage = async (endpoint: string, message: any): Promise<SlackResponse> => {
+            return { statusCode: 100, statusMessage: 'ok', body: message };
+        };
+    })();
     return { service, current };
 };
 
@@ -56,6 +64,57 @@ describe('slack-service /w dummy', () => {
             channel: 'x',
         });
 
-        expect2(await service.default()).toEqual({ id: 'public' });
+        expect2(await service.channel('public').catch(GETERR)).toEqual(null);
+        expect2(await service.default()).toEqual({ channel: 'public' });
+
+        //* test send().
+        if (1) {
+            const endpoint = 'http://example.com/slack';
+            expect2(await service.send({ text: 'hello' })).toEqual({
+                channel: 'public',
+                $sent: {
+                    statusCode: 0,
+                    statusMessage: '@endpoint(string) is required in channe[public] - slack.send(/)',
+                },
+            });
+            expect2(await service.$channel.save('public', { endpoint })).toEqual({ endpoint });
+
+            //* determine the channel in order: param.channel > message.channel > default.channel
+            expect2(await service.send({ text: 'hello' })).toEqual({
+                channel: 'public',
+                $sent: { statusCode: 100, statusMessage: 'ok', body: { text: 'hello' } },
+                endpoint,
+            });
+            expect2(await service.send({ text: 'hello' }, { channel: 'test' })).toEqual({
+                channel: 'test',
+                $sent: { statusCode: 100, statusMessage: 'ok', body: { channel: 'test', text: 'hello' } },
+                endpoint,
+            });
+            expect2(await service.send({ text: 'hello' }, { channel: 'public' })).toEqual({
+                channel: 'public',
+                $sent: { statusCode: 100, statusMessage: 'ok', body: { channel: 'public', text: 'hello' } },
+                endpoint,
+            });
+            expect2(await service.send({ text: 'hello', channel: 'test' })).toEqual({
+                channel: 'public',
+                $sent: { statusCode: 100, statusMessage: 'ok', body: { channel: 'test', text: 'hello' } },
+                endpoint,
+            });
+            expect2(await service.send({ text: 'hello', channel: 'test' }, { channel: 'public' })).toEqual({
+                channel: 'public',
+                $sent: { statusCode: 100, statusMessage: 'ok', body: { channel: 'public', text: 'hello' } },
+                endpoint,
+            });
+            expect2(await service.send({ text: 'hello', channel: 'public' })).toEqual({
+                channel: 'public',
+                $sent: { statusCode: 100, statusMessage: 'ok', body: { channel: 'public', text: 'hello' } },
+                endpoint,
+            });
+            expect2(await service.send({ text: 'hello', channel: 'public' }, { channel: 'test' })).toEqual({
+                channel: 'test',
+                $sent: { statusCode: 100, statusMessage: 'ok', body: { channel: 'test', text: 'hello' } },
+                endpoint,
+            });
+        }
     });
 });

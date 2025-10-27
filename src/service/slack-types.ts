@@ -97,9 +97,9 @@ export interface SlackChannelModel {
  * interface: `SlackResponse`
  * - response from slack to post.
  */
-export interface SlackResponse {
+export interface SlackResponse<T = string> {
     /** body in json string */
-    body?: string;
+    body?: T;
     /** status code */
     statusCode: number;
     /** status message */

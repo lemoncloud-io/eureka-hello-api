@@ -21,13 +21,18 @@ import url from 'url';
  * interface: `SlackMessage`
  * - slack message interface
  */
-export interface SlackMessage extends SlackPostBody {
+export interface SlackMessage extends Omit<SlackPostBody, 'attachments'> {
     /**
      * the target channel name to be posted.
      * - if null, then send to default channel which was created in Slack App.
      * - if specified, then send message to this channel.
      */
     channel?: string;
+
+    /**
+     * (optional) attachments in slack message
+     */
+    attachments?: SlackAttachment[];
 }
 export { SlackResponse };
 
@@ -236,7 +241,7 @@ export class SlackService {
         const $msg = isDirect && body ? await this.saveMessageToS3(body, isUseS3) : body;
         const message: SlackMessage = onlyDefined<SlackMessage>({
             ...$msg,
-            channel: channel === null || channel === '' ? undefined : channel,
+            channel: channel === null || channel === '' ? undefined : !target ? body?.channel : channel,
         });
 
         //* send via endpoint.
@@ -255,7 +260,7 @@ export class SlackService {
             };
         };
         const $sent = await _send();
-        return onlyDefined<SlackChannelModel>({ ...(target ?? parent), $sent });
+        return onlyDefined<SlackChannelModel>({ ...(target ?? parent), $sent, endpoint });
     }
 
     /**
@@ -347,18 +352,18 @@ export class SlackService {
     };
 
     /**
-     * POST message to hookUrl.
+     * POST message to endpoint.
      *
-     * @param {*} hookUrl       URL
+     * @param {*} endpoint      URL
      * @param {*} message       Object or String.
      */
-    public postMessage = async (hookUrl: string, message: any): Promise<SlackResponse> => {
-        _log(NS, `> postMessage = hookUrl[${hookUrl}]`);
+    public postMessage = async (endpoint: string, message: any): Promise<SlackResponse> => {
+        _log(NS, `> postMessage = endpoint[${endpoint}]`);
         message = typeof message == 'object' && message instanceof Promise ? await message : message;
         _log(NS, `> message = `, $U.json(message));
 
         //TODO - improve `url.parse()` due to deprecated.
-        const options: any = url.parse(hookUrl);
+        const options: any = url.parse(endpoint);
         const body = (typeof message == 'string' ? message : JSON.stringify(message)) || '';
         options.method = 'POST';
         options.headers = {
@@ -375,7 +380,7 @@ export class SlackService {
                     const statusCode = res.statusCode || 200;
                     const statusMessage = res.statusMessage || '';
                     const result = { body, statusCode, statusMessage };
-                    _log(NS, `> post(${hookUrl}) =`, $U.json(result));
+                    _log(NS, `> post(${endpoint}) =`, $U.json(result));
                     if (statusCode < 400) {
                         resolve(result);
                     } else {
