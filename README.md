@@ -14,7 +14,7 @@ Nothing to manage at all, just run and go.
 
     1. [aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) with api-key
     2. [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-    3. [nodejs18](https://nodejs.org/en/blog/release/v18.12.0)
+    3. [nodejs22](https://nodejs.org/ko/blog/release/v22.11.0)
     4. (optional) [httpie](https://httpie.io/docs/cli/installation)
 
 - Fork(or clone), develop and deploy the serverless api.
@@ -38,11 +38,30 @@ Nothing to manage at all, just run and go.
     # (example) use AWS authorized call.
     $ http --auth-type aws4 https://7s91yrozci.execute-api.ap-northeast-2.amazonaws.com/dev/hello/0 name=world
 
-    # STEP.5 check the deploy info
+    # STEP.5 check the deploy info (`AWS-Key` is required).
     $ npm run info
 
-    # STEP.6 remove(or uninstall)
+    # STEP.6 remove(or uninstall) (`AWS-Key` is required).
     $ npm run remove
+    ```
+
+- Use AWS profile to deploy and manage the serverless api.
+
+    ```bash
+    # if you already configured AWS profile.
+    $ aws configure --profile myprofile
+
+    # STEP.1 deploy with specific AWS profile.
+    $ AWS_PROFILE=myprofile npm run deploy
+
+    # (example) use AWS authorized call.
+    $ http --auth-type aws4 https://{your_deployed_api_id}.execute-api.ap-northeast-2.amazonaws.com/dev/hello/0 name=world
+
+    # STEP.2 check the deploy info with specific AWS profile.
+    $ AWS_PROFILE=myprofile npm run info
+
+    # STEP.3 remove(or uninstall) with specific AWS profile.
+    $ AWS_PROFILE=myprofile npm run remove
     ```
 
 ## LICENSE
