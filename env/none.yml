@@ -6,7 +6,7 @@ default_env: &default_env
   LS: 0                   # log silence.
   LC: 1                   # line-coloring
   TS: 1                   # time-stamp in line
-  NAME: ''                # profile name to load credentials.
+  NAME: ''                # profile name to load AWS credentials. (default: default)
 
 #-----------------------------------
 # local development configuration.
