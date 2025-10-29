@@ -8,11 +8,12 @@
  *
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
-import { $U, _log, CoreManager, CoreService, $T, NextContext } from 'lemon-core';
-import { GeneralItem, $protocol } from 'lemon-core';
+import $cores, { $T, $U, _log, NextContext, $protocol, NUL404 } from 'lemon-core';
+import { CoreManager, CoreService, GeneralItem, AWSS3Service } from 'lemon-core';
 import { $FIELD, Model, ModelType, TestModel } from './hello-model';
 import { MessagePayload } from './types';
-
+import { SlackService } from './slack-service';
+import { SlackChannelModel, StorageSupportable } from './slack-types';
 const NS = $U.NS('hello', 'blue'); // NAMESPACE TO BE PRINTED.
 
 /**
@@ -21,6 +22,7 @@ const NS = $U.NS('hello', 'blue'); // NAMESPACE TO BE PRINTED.
  */
 export class HelloService extends CoreService<Model, ModelType> {
     public readonly $test: MyTestManager;
+    public readonly $slack: SlackService;
 
     /**
      * default constructor w/ optional parameters.
@@ -32,6 +34,33 @@ export class HelloService extends CoreService<Model, ModelType> {
         super(tableName);
         _log(NS, `HelloService(${this.tableName}, ${this.NS})...`);
         this.$test = new MyTestManager(this);
+
+        type MyModel = TestModel<SlackChannelModel>;
+        // support s3 to store large message body.
+        const _s3 = (): AWSS3Service => {
+            const EP = $U.env('MY_S3_BUCKET');
+            if (EP) return $cores.cores.aws.s3;
+            return null;
+        };
+        // support for slack data.
+        const _db = (thiz: HelloService) =>
+            new (class MyChannel implements StorageSupportable<SlackChannelModel> {
+                public hello = () => `hello-service-channel-storage`;
+                public async read(id: string): Promise<SlackChannelModel> {
+                    const data = await thiz.$test.retrieve(`@${id}`).catch<MyModel>(NUL404);
+                    if (data?.meta$) return data.meta$;
+                    return null;
+                }
+                public async save(id: string, data?: SlackChannelModel): Promise<SlackChannelModel> {
+                    if (data === null) return thiz.$test.delete(`@${id}`, true);
+                    const $org = await this.read(id);
+                    const meta$ = { ...$org, ...data };
+                    const result = await thiz.$test.save(`@${id}`, { meta$ });
+                    return result?.meta$;
+                }
+            })();
+        // initialize slack service.
+        this.$slack = new SlackService(_db(this), { $s3s: _s3() });
     }
 
     /**

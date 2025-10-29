@@ -8,11 +8,14 @@
  *
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
-import { $T, $U, _log, NextHandler, GeneralWEBController, NextContext, $info } from 'lemon-core';
+import $cores, { $T, $U, _log, _inf, NextHandler, NextContext } from 'lemon-core';
+import { GeneralWEBController, $info, onlyDefined } from 'lemon-core';
 import { Model, TestModel } from '../service/hello-model';
-import { HelloService } from '../service/hello-service';
+import $service, { HelloService } from '../service/hello-service';
+import { SlackResponse, SlackMessage, SlackTransformer } from '../service/slack-service';
 import { ALBNextHandler } from 'lemon-core/dist/cores/lambda/lambda-alb-handler';
 import { PostSnsBody, PostSqsBody, MessagePayload } from '../service/views';
+import { SlackChannelModel } from '../service/slack-types';
 const NS = $U.NS('hello', 'yellow'); // NAMESPACE TO BE PRINTED.
 
 /**
@@ -30,12 +33,12 @@ export class HelloAPIController extends GeneralWEBController {
     /**
      * default constructor.
      */
-    public constructor(readonly service?: HelloService) {
+    public constructor(readonly service: HelloService = $service) {
         super('hello');
         _log(NS, `HelloAPIController()...`);
 
-        const tableName = $U.env('MY_DYNAMO_TABLE');
-        this.service = service ?? new HelloService(tableName);
+        //* attach sns listener
+        $cores.cores.lambda.sns.addListener(this.doPostEvent);
     }
 
     /**
@@ -68,7 +71,7 @@ export class HelloAPIController extends GeneralWEBController {
      * ```sh
      * $ http ':8000/hello/0'
      */
-    public getHello: NextHandler = async (id, param, body, context) => {
+    public doGet: NextHandler = async (id, param, body, context) => {
         const errScope = `getHello(${this.type()}/${id ?? ''})`;
         _log(NS, `${errScope} ...`);
         const i = $U.N(id, 0);
@@ -83,10 +86,10 @@ export class HelloAPIController extends GeneralWEBController {
      * ```sh
      * $ echo '{"name":1}' | http PUT ':8000/hello/1'
      */
-    public putHello: NextHandler = async (id, param, body, context) => {
-        const errScope = `putHello(${this.type()}/${id ?? ''})`;
+    public doPut: NextHandler = async (id, param, body, context) => {
+        const errScope = `doPut(${this.type()}/${id ?? ''})`;
         _log(NS, `${errScope} ...`);
-        const node = await this.getHello(id, null, null, context);
+        const node = await this.doGet(id, null, null, context);
         const i = $U.N(node?.id, 0);
         this.BUFF[i] = { ...node, ...body };
         return this.modelAsView(this.BUFF[i]);
@@ -137,17 +140,133 @@ export class HelloAPIController extends GeneralWEBController {
     };
 
     /**
+     * send message to slack by channel configuration.
+     * - support routeing via `SlackService.route()` (see `SlackChannelModel.rules`)
+     *
+     * ```sh
+     * # use default channel (as public)
+     * $ http :8000/hello/0/slack text=hello                                # to default channel(public).
+     * $ http :8000/hello/0/slack text=hello channel=error                  # to `error` channel via public.
+     *
+     * # force to use `error` channel config.
+     * $ http :8000/hello/error/slack text=hello                            # to `error` channel.
+     *
+     * # force to use `error` channel config (ignore channel param)
+     * $ http :8000/hello/error/slack text=hello channel=public             # to `error` channel.
+     * $ http :8000/hello/public/slack text=hello channel=error             # to `public` channel.
+     *
+     * # not defined channel name.
+     * $ http :8000/hello/some/slack text=hello                             # to `some` channel which is not defined.
+     * $ http :8000/hello/0/slack text=hello channel=some                   # to `some` channel which is not defined.
+     */
+    public doPostSlack: NextHandler<any, SlackResponse, SlackMessage> = async (id, param, body, $ctx) => {
+        const errScope = `doPostSlack(${this.type()}/${id ?? ''})`;
+        _inf(NS, `${errScope} ...`);
+        id = id === '0' ? null : $T.S2(id);
+
+        // STEP.0 validate parameters.
+        // const direct = !!$U.N(param?.direct, param?.direct === '' ? 1 : 0);
+        if (!body) throw new Error(`.body (SlackMessage) is required - ${errScope}`);
+
+        // STEP.2 prepare slack message via body.
+        const message: SlackMessage =
+            body && typeof body === 'object' ? body : { text: `${body}`, attachments: undefined };
+        _log(NS, '> message :=', $U.json(message));
+
+        // STEP.3 send to slack.
+        const channel: string = id ? id : undefined;
+        const $res = await this.service.$slack.route(message, { channel });
+        _log(NS, `> sent[${channel ?? ''}] =`, $U.json($res?.$sent));
+
+        // return sent result.
+        return $res?.$sent;
+    };
+
+    /**
+     * process SNS Event and post to Slack
+     *
+     * ```sh
+     * cat sample/error-1.json | http ':8000/hello/0/event?subject=error'
+     * cat sample/slack-1.json | http ':8000/hello/0/event'
+     */
+    public doPostEvent: NextHandler = async (id, $param, $body, $ctx) => {
+        const errScope = `doPostEvent(${this.type()}/${id ?? ''})`;
+        _inf(NS, `${errScope} ...`);
+        $body && _log(NS, `> body[${id}]=`, typeof $body, $U.json($body));
+
+        //* extract the 1st key name of object.
+        const _1st = (o: any) => {
+            if (o && typeof o == 'object') {
+                const keys = Object.keys(o);
+                return keys.length > 0 ? keys[0] : '';
+            } else if (o && typeof o == 'string') {
+                return `${o}`.trim();
+            }
+            return '';
+        };
+        const subject = `${$param?.subject || _1st($body) || ''}`.trim();
+
+        //* decode next-chain.
+        const transform: SlackTransformer = this.service.$slack.asTransformer(subject);
+        if (!transform) throw new Error(`@transform(${subject}) is not defined - ${errScope}`);
+
+        //* transform to slack-body..
+        const { channel, body } = await Promise.resolve(transform({ subject, data: $body, context: $ctx }));
+        _log(NS, `> body[<${typeof channel}>${channel}] =`, $U.json(body));
+
+        // send to slack.
+        return this.doPostSlack(channel, { ...$param }, body, $ctx);
+    };
+
+    /**
+     * Save data of channel.
+     * - if body is null, then delete.
+     *
+     * ```sh
+     * $ http :8000/hello/public/channel name=public
+     * $ http :8000/hello/public/channel channel=
+     */
+    public doGetChannel: NextHandler = async (id, param, body, context) =>
+        this.doPostChannel(id, param, undefined, context);
+    public doPostChannel: NextHandler = async (id, param, body, context) => {
+        const errScope = `doPostChannel(${this.type()}/${id ?? ''})`;
+        _log(NS, `${errScope} ...`);
+        id = id === '0' ? null : $T.S2(id);
+        if (!id) throw new Error(`@id (string) is required - ${errScope}`);
+        _log(NS, `> body =`, $U.json(body));
+        const isGet = !body;
+
+        const isLocal = context?.domain === 'localhost';
+        const $org = await this.service.$slack.default(id);
+        if (isGet) {
+            if (!$org) throw new Error(`404 NOT FOUND - no channel data @${errScope}`);
+            return { ...$org, endpoint: !isLocal ? $org?.endpoint?.substring(0, 12) : $org?.endpoint };
+        }
+
+        // build model to update.
+        const model = onlyDefined<SlackChannelModel>({
+            channel: body?.channel !== undefined ? $T.S2(body?.channel) : undefined,
+            name: body?.name !== undefined ? $T.S2(body?.name) : undefined,
+            endpoint: body?.endpoint !== undefined ? $T.S2(body?.endpoint) : undefined,
+            useS3: body?.useS3 !== undefined ? !!$T.B(body?.useS3) : undefined,
+        });
+
+        // update (or delete)
+        return await this.service.$slack.$channel.save(id, body?.channel === '' ? null : { ...$org, ...model });
+    };
+
+    /**
      * Delete Node (or mark deleted)
      *
      * ```sh
      * $ http DELETE ':8000/hello/1'
      */
-    public deleteHello: NextHandler = async (id, param, body, context) => {
-        const errScope = `deleteHello(${this.type()}/${id ?? ''})`;
+    public doDelete: NextHandler = async (id, param, body, context) => {
+        const errScope = `doDelete(${this.type()}/${id ?? ''})`;
         _log(NS, `${errScope} ...`);
 
         // find, and delete by index
-        const node = await this.getHello(id, null, null, context);
+        const node = await this.doGet(id, null, null, context);
         const i = $U.N(node?.id, 0);
         delete this.BUFF[i];
         return this.modelAsView(node);
@@ -178,6 +297,7 @@ export class HelloAPIController extends GeneralWEBController {
         if (!id) throw new Error(`@id (string) is required - ${errScope}`);
         return this.service.$test.saveToDynamo(id, body);
     };
+
     /**
      * Read data from DynamoDB
      *
@@ -189,6 +309,7 @@ export class HelloAPIController extends GeneralWEBController {
         _log(NS, `${errScope} ...`);
         return this.service.$test.readFromDynamo(id);
     };
+
     /**
      * Send data to SQS
      *
@@ -213,6 +334,7 @@ export class HelloAPIController extends GeneralWEBController {
         });
         return this.service.$test.sendToSqs($body, context);
     };
+
     /**
      * Send data to SNS
      *

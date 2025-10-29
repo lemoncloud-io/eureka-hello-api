@@ -31,7 +31,7 @@ export type Model = CoreModel<ModelType>;
  * type: `TestModel`
  * - internal test model.
  */
-export interface TestModel extends Model {
+export interface TestModel<T = any> extends Model {
     /**
      * id of model
      */
@@ -48,6 +48,10 @@ export interface TestModel extends Model {
      * internal test count
      */
     count?: number;
+    /**
+     * metadata in some format.
+     */
+    meta$?: T;
 
     /**
      * (readonly) view.
