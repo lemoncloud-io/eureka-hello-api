@@ -44,31 +44,6 @@ custom:
     dev: eureka-hello-table-dev
     prod: eureka-hello-table
   #------------------------------------------------
-  # SQS Queue
-  #------------------------------------------------
-  queueName:
-    local: eureka-hello-sqs-dev
-    dev: eureka-hello-sqs-dev
-    prod: eureka-hello-sqs
-  #------------------------------------------------
-  # SNS Registration
-  #------------------------------------------------
-  topicName:
-    local: eureka-hello-sns-dev
-    dev: eureka-hello-sns-dev
-    prod: eureka-hello-sns
-  topicArn:
-    Fn::Join:
-      - ''
-      - - 'arn:aws:sns:'
-        - Ref: AWS::Region
-        - ':'
-        - Ref: AWS::AccountId
-        - ':'
-        - Fn::GetAtt:
-          - MyInputTopic
-          - TopicName
-  #------------------------------------------------
   # pruning old versions
   #------------------------------------------------
   prune:
@@ -107,14 +82,8 @@ provider:
   # Lambda Runtime Environment
   memorySize: 512
   timeout: 30
-  runtime: ${self:custom.CONF.${self:custom.CORE.profile}.runtime, 'nodejs18.x'}
+  runtime: ${self:custom.CONF.${self:custom.CORE.profile}.runtime, 'nodejs22.x'}
   region: ${self:custom.CONF.${self:custom.CORE.profile}.region, self:custom.CORE.region}      # profile의 region를 먼저 사용하고, 없으면 실행 옵션값.
-
-  # WARN! NO VPC required due to NAT configuration to connect outside.
-  # # VPC Configuration for Lambda.
-  # vpc:
-  #   securityGroupIds: ${self:custom.CONF.${self:custom.CORE.profile}.securityGroupIds}
-  #   subnetIds: ${self:custom.CONF.${self:custom.CORE.profile}.subnetIds}
 
   # Lambda function's IAM Role here
   iamRoleStatements:
@@ -122,7 +91,6 @@ provider:
     - Effect: Allow
       Action:
         - lambda:InvokeFunction
-        - SNS:GetEndpointAttributes
         - cloudwatch:PutMetricData
       Resource: "*"
     # IAM/STS - For VPC, Use static ARN Name for 'eureka-hello-api'.
@@ -131,18 +99,6 @@ provider:
         - iam:GetUser
         - sts:GetCallerIdentity
       Resource: "*"
-    # SQS to receive the queue job
-    - Effect: "Allow"
-      Action:
-        - sqs:SendMessage
-        - sqs:DeleteMessage
-        - sqs:ReceiveMessage
-      Resource: "arn:aws:sqs:${opt:region, self:provider.region}:*:${self:custom.queueName.${self:custom.CORE.stage}}"
-    # SNS to receive the notification.
-    - Effect: "Allow"
-      Action:
-        - sns:Publish
-      Resource: ${self:custom.topicArn}
     # KMS to verify the identity
     - Effect: Allow
       Action:
@@ -171,8 +127,6 @@ provider:
   environment:
     DEFAULT_REGION: '${self:provider.region}'
     MY_DYNAMO_TABLE: '${self:custom.tableName.${self:custom.CORE.stage}}'
-    MY_SQS_ENDPOINT: 'https://sqs.${self:provider.region}.amazonaws.com/${aws:accountId}/${self:custom.queueName.${self:custom.CORE.stage}}' # see `sqs-service`
-    MY_SNS_ENDPOINT: 'arn:aws:sns:${self:provider.region}:${aws:accountId}:${self:custom.topicName.${self:custom.CORE.stage}}'               # see `sns-service`
     $<<: ${file(./env/${self:custom.CONF.${self:custom.CORE.profile}.env}):${self:custom.CORE.stage}}
 
 #------------------------------------------------
@@ -194,18 +148,6 @@ functions:
             Fn::GetAtt:
               - MyTable
               - StreamArn
-      # -------------------------------------------------------
-      # Shared SNS Service.
-      - sns: 'arn:aws:sns:${self:provider.region}:${aws:accountId}:${self:custom.topicName.${self:custom.CORE.stage}}'
-      # -------------------------------------------------------
-      # Shared SQS Service.
-      - sqs:
-          arn:
-            Fn::GetAtt:
-              - MyQueue
-              - Arn
-          # the maximum number of SQS messages that AWS will send to your Lambda function on a single trigger. (default: 10)
-          batchSize: 1
   #WARN - must use `lambda` as name for `lemon-protocol`.
   lambda:
     handler: handler.lambda     # use core `lambda-handler`.
@@ -343,25 +285,3 @@ resources:
         BillingMode: PAY_PER_REQUEST
         StreamSpecification:
           StreamViewType: "NEW_AND_OLD_IMAGES"
-
-    # -------------------------------
-    # SQS Queue
-    # -------------------------------
-    MyQueue:
-      Type: 'AWS::SQS::Queue'
-      # https://docs.aws.amazon.com/ko_kr/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
-      Properties:
-        QueueName: '${self:custom.queueName.${self:custom.CORE.stage}}'
-        MessageRetentionPeriod: 1800      # 30 mins
-        VisibilityTimeout: 300            # 5 mins
-        MaximumMessageSize: 4096          # 4 Kb
-        DelaySeconds: 3                   # 3 seconds
-        ReceiveMessageWaitTimeSeconds: 20 # 20 seconds
-
-    # -------------------------------
-    # This SNS Topic
-    # -------------------------------
-    MyInputTopic:
-      Type: 'AWS::SNS::Topic'
-      Properties:
-        TopicName: '${self:custom.topicName.${self:custom.CORE.stage}}'
