@@ -10,6 +10,7 @@
  */
 import $cores, { $info, $T, $U, _err, _inf, _log, GETERR, NextContext } from 'lemon-core';
 import { AWSS3Service, SlackAttachment, SlackPostBody } from 'lemon-core';
+import { asChaticPayload } from './chatic-transformer';
 import { RouteRule, SlackChannelModel, SlackResponse, StorageSupportable } from './slack-types';
 const NS = $U.NS('slack', 'blue'); // NAMESPACE TO BE PRINTED.
 
@@ -295,7 +296,8 @@ export class SlackService {
         const parent = options?.parent ?? (await this.default());
         const endpoint = target?.endpoint || parent?.endpoint;
         const channel = target?.channel ?? parent?.channel;
-        _log(NS, `>> parent =`, $U.json(parent));
+        const stereo = target?.stereo || parent?.stereo;
+        _log(NS, `>> parent =`, $U.json({ ...parent, token: parent?.token ? '***' : undefined }));
 
         const asBool = (a: any): boolean => (a === undefined || a === null || a === '' ? undefined : !!a);
         const isDirect = !direct && endpoint?.startsWith('https://hooks.slack.com');
@@ -318,7 +320,13 @@ export class SlackService {
         //* send via endpoint.
         const _send = async () => {
             if (endpoint?.startsWith('http://') || endpoint?.startsWith('https://')) {
-                const $sent = await this.postMessage(endpoint, message).catch<SlackResponse>(e => {
+                //* `chatic` channel - convert to `{channelId, content, stereo, token}`. (token carried in body)
+                const isChatic = stereo === 'chatic';
+                const channelId = target?.channelId || parent?.channelId;
+                const token = target?.token || parent?.token;
+                const sourceUrl = isChatic ? await this.saveChaticSourceToS3(message, isUseS3) : undefined;
+                const $body = isChatic ? asChaticPayload(channelId, message, { sourceUrl, token }) : message;
+                const $sent = await this.postMessage(endpoint, $body).catch<SlackResponse>(e => {
                     _err(NS, `! err.send:${channel ?? ''} =`, e);
                     return { statusCode: 500, statusMessage: `${GETERR(e)} - ${errScope}` };
                 });
@@ -420,6 +428,25 @@ export class SlackService {
                 });
         }
         return message;
+    };
+
+    /**
+     * upload the original message (JSON) to S3 for `chatic` webhook.
+     * - unlike `saveMessageToS3()`, this does not rewrite `.attachments` w/ slack markup.
+     * - returns the object URL, or `undefined` if S3 is not configured/enabled or upload fails.
+     */
+    public saveChaticSourceToS3 = async (message: SlackMessage, isUseS3?: boolean): Promise<string> => {
+        const SLACK_PUT_S3 = $U.env('SLACK_PUT_S3', '1') as string;
+        isUseS3 = isUseS3 ?? !!$U.N(SLACK_PUT_S3, 0);
+        const bucket = this.options?.$s3s?.bucket();
+        if (!isUseS3 || !bucket) return undefined;
+        return this.options?.$s3s
+            .putObject($U.json(message))
+            .then(res => res?.Location)
+            .catch(e => {
+                _err(NS, '> WARN! chatic.s3.err =', e);
+                return undefined;
+            });
     };
 
     /**

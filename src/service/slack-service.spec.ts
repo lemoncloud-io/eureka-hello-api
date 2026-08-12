@@ -11,6 +11,7 @@
 import { expect2, GETERR } from 'lemon-core';
 
 //* import main models and service.
+import { asChaticContent, asChaticPayload } from './chatic-transformer';
 import { SlackService } from './slack-service';
 import { SlackChannelModel, SlackResponse, StorageSupportable } from './slack-types';
 
@@ -113,6 +114,216 @@ describe('slack-service /w dummy', () => {
                 channel: 'test',
                 $sent: { statusCode: 100, statusMessage: 'ok', body: { channel: 'test', text: 'hello' } },
                 endpoint,
+            });
+        }
+
+        //* test `asChaticContent()`/`asChaticPayload()` - pure conversion from slack body to chatic payload.
+        if (1) {
+            expect2(() => asChaticContent({ text: 'hello' })).toEqual('hello');
+            expect2(() => asChaticContent({})).toEqual('');
+            expect2(() =>
+                asChaticContent({
+                    text: 'hello',
+                    attachments: [
+                        {
+                            pretext: 'P',
+                            title: 'T',
+                            text: 'X',
+                            fields: [
+                                { title: 'F', value: 1 },
+                                { title: '', value: 'v2' },
+                            ],
+                        },
+                    ],
+                }),
+            ).toEqual('hello\nP\nT\nX\nF: 1\nv2');
+
+            //* long/object `text` is dropped - key lines only (full payload is delegated to `sourceUrl`).
+            expect2(() =>
+                asChaticPayload('C001', { attachments: [{ pretext: 'P', title: 'T', text: { a: 1 } as any }] }),
+            ).toEqual({ channelId: 'C001', content: 'P\nT', stereo: 'webhook', meta: { pretext: 'P', title: 'T' } });
+            expect2(() => asChaticContent({ attachments: [{ title: 'T', text: 'x'.repeat(501) }] })).toEqual('T');
+
+            //* w/o attachments -> `meta.text` falls back to `body.text` (only field body carries).
+            expect2(() => asChaticPayload('C001', { text: 'hi' })).toEqual({
+                channelId: 'C001',
+                content: 'hi',
+                stereo: 'webhook',
+                meta: { text: 'hi' },
+            });
+
+            //* w/ attachments -> `meta` extracted from the first attachment (representative), incl. `footer`.
+            expect2(() =>
+                asChaticPayload('C001', {
+                    text: 'hello',
+                    attachments: [
+                        {
+                            pretext: 'P',
+                            title: 'T',
+                            text: 'X',
+                            color: 'danger',
+                            footer: 'chatic-sockets-api/lemon-production#0.26.710',
+                            fields: [
+                                { title: 'F', value: 1 },
+                                { title: '', value: 'v2' },
+                            ],
+                        },
+                    ],
+                }),
+            ).toEqual({
+                channelId: 'C001',
+                content: 'hello\nP\nT\nX\nF: 1\nv2',
+                stereo: 'webhook',
+                meta: {
+                    pretext: 'P',
+                    title: 'T',
+                    text: 'X',
+                    color: 'danger',
+                    footer: 'chatic-sockets-api/lemon-production#0.26.710',
+                    fields: [{ title: 'F', value: 1 }, { value: 'v2' }],
+                },
+            });
+
+            //* w/ `sourceUrl` -> appended as the last raw-url line of `content` + carried in `meta.sourceUrl`.
+            expect2(() =>
+                asChaticPayload('C001', { text: 'hi' }, { sourceUrl: 'https://s3.example.com/o.json' }),
+            ).toEqual({
+                channelId: 'C001',
+                content: 'hi\nhttps://s3.example.com/o.json',
+                stereo: 'webhook',
+                meta: { text: 'hi', sourceUrl: 'https://s3.example.com/o.json' },
+            });
+
+            //* w/ `token` -> carried in the body (no headers), omitted if not given.
+            expect2(() => asChaticPayload('C001', { text: 'hi' }, { token: 'secret-token' })).toEqual({
+                channelId: 'C001',
+                content: 'hi',
+                stereo: 'webhook',
+                token: 'secret-token',
+                meta: { text: 'hi' },
+            });
+        }
+
+        //* test `send()` branching to `chatic` channel - transform body, carrying the service token in body.
+        if (1) {
+            const calls: { endpoint: string; message: any }[] = [];
+            (service as any).postMessage = async (endpoint: string, message: any) => {
+                calls.push({ endpoint, message });
+                return { statusCode: 100, statusMessage: 'ok', body: message };
+            };
+
+            //* chatic channel w/ token -> converted body incl. `token`.
+            await service.$channel.save('chatic1', {
+                endpoint: 'http://example.com/chat-send',
+                stereo: 'chatic',
+                channelId: 'C001',
+                token: 'secret-token',
+            });
+            await service.send({ text: 'hello' }, { channel: 'chatic1' });
+            expect2(calls.pop()).toEqual({
+                endpoint: 'http://example.com/chat-send',
+                message: {
+                    channelId: 'C001',
+                    content: 'hello',
+                    stereo: 'webhook',
+                    token: 'secret-token',
+                    meta: { text: 'hello' },
+                },
+            });
+
+            //* chatic channel w/o token -> converted body, no `token` field.
+            await service.$channel.save('chatic2', {
+                endpoint: 'http://example.com/chat-send2',
+                stereo: 'chatic',
+                channelId: 'C002',
+            });
+            await service.send({ text: 'hi' }, { channel: 'chatic2' });
+            expect2(calls.pop()).toEqual({
+                endpoint: 'http://example.com/chat-send2',
+                message: {
+                    channelId: 'C002',
+                    content: 'hi',
+                    stereo: 'webhook',
+                    meta: { text: 'hi' },
+                },
+            });
+
+            //* chatic channel w/ `$s3s` configured -> uploads original message, appends raw url to `content`,
+            //  and carries `meta.sourceUrl`.
+            const s3Calls: { json: string }[] = [];
+            const $s3s = {
+                bucket: () => 'test-bucket',
+                putObject: async (json: string) => {
+                    s3Calls.push({ json });
+                    return { Bucket: 'test-bucket', Key: 'k.json', Location: 'https://s3.example.com/k.json' } as any;
+                },
+            } as any;
+            const service2: SlackService = new (class extends SlackService {
+                constructor() {
+                    super(service.$channel, { $s3s });
+                }
+                public postMessage = async (endpoint: string, message: any) => {
+                    calls.push({ endpoint, message });
+                    return { statusCode: 100, statusMessage: 'ok', body: message };
+                };
+            })();
+            await service2.send({ text: 'hello' }, { channel: 'chatic1' });
+            expect2(() => JSON.parse(s3Calls.pop()?.json)).toEqual({ channel: 'chatic1', text: 'hello' });
+            expect2(calls.pop()).toEqual({
+                endpoint: 'http://example.com/chat-send',
+                message: {
+                    channelId: 'C001',
+                    content: 'hello\nhttps://s3.example.com/k.json',
+                    stereo: 'webhook',
+                    token: 'secret-token',
+                    meta: {
+                        text: 'hello',
+                        sourceUrl: 'https://s3.example.com/k.json',
+                    },
+                },
+            });
+
+            //* `$s3s.putObject()` failing -> send proceeds w/o `sourceUrl` (no url, unchanged content/meta).
+            const $s3sFail = {
+                bucket: () => 'test-bucket',
+                putObject: async () => {
+                    throw new Error('put-failed');
+                },
+            } as any;
+            const service3: SlackService = new (class extends SlackService {
+                constructor() {
+                    super(service.$channel, { $s3s: $s3sFail });
+                }
+                public postMessage = async (endpoint: string, message: any) => {
+                    calls.push({ endpoint, message });
+                    return { statusCode: 100, statusMessage: 'ok', body: message };
+                };
+            })();
+            await service3.send({ text: 'hi' }, { channel: 'chatic2' });
+            expect2(calls.pop()).toEqual({
+                endpoint: 'http://example.com/chat-send2',
+                message: {
+                    channelId: 'C002',
+                    content: 'hi',
+                    stereo: 'webhook',
+                    meta: { text: 'hi' },
+                },
+            });
+
+            //* no `stereo` (slack, existing) -> unchanged body. (no-regression)
+            await service.$channel.save('slack1', { endpoint: 'http://example.com/slack1' });
+            await service.send({ text: 'hi' }, { channel: 'slack1' });
+            expect2(calls.pop()).toEqual({
+                endpoint: 'http://example.com/slack1',
+                message: { channel: 'slack1', text: 'hi' },
+            });
+
+            //* explicit `stereo: 'slack'` -> same as default slack path. (no-regression)
+            await service.$channel.save('slack2', { endpoint: 'http://example.com/slack2', stereo: 'slack' });
+            await service.send({ text: 'hi' }, { channel: 'slack2' });
+            expect2(calls.pop()).toEqual({
+                endpoint: 'http://example.com/slack2',
+                message: { channel: 'slack2', text: 'hi' },
             });
         }
     });

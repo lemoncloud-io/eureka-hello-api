@@ -11,6 +11,9 @@
 import { expect2, loadJsonSync, $U } from 'lemon-core';
 import { HelloAPIController } from './hello-api';
 import * as $service from '../service/hello-service.spec';
+import { SlackService } from '../service/slack-service';
+import { SlackChannelModel, StorageSupportable } from '../service/slack-types';
+import { HelloService } from '../service/hello-service';
 
 import { app } from '../express';
 import request from 'supertest';
@@ -48,5 +51,72 @@ describe('hello-controller', () => {
             status: 200,
             text: $U.json({ ...expected }),
         });
+    });
+
+    it('should pass channel save/read w/ chatic fields and token masking', async () => {
+        const $channel = new (class implements StorageSupportable<SlackChannelModel> {
+            public $map: { [id: string]: SlackChannelModel } = {};
+            public hello = () => `dummy-channel-storage`;
+            public async read(id: string) {
+                return this.$map[id] || null;
+            }
+            public async save(id: string, model: SlackChannelModel) {
+                const $old = this.$map[id];
+                const $fin = model === null ? null : { ...$old, ...model };
+                if ($fin === null) delete this.$map[id];
+                else this.$map[id] = $fin;
+                return $fin;
+            }
+        })();
+        const service = { $slack: new SlackService($channel) } as unknown as HelloService;
+        const controller = new HelloAPIController(service);
+        const id = 'chatic1';
+
+        //* save a chatic channel.
+        const saved = await controller.doPostChannel(
+            id,
+            {},
+            {
+                endpoint: 'https://example.com/hello/chat-send',
+                stereo: 'chatic',
+                channelId: 'C001',
+                token: 'super-secret-1234',
+            },
+            { domain: 'localhost' },
+        );
+        expect2(saved).toEqual({
+            channel: id,
+            endpoint: 'https://example.com/hello/chat-send',
+            stereo: 'chatic',
+            channelId: 'C001',
+            token: 'super-secret-1234',
+        });
+
+        //* read via non-local context -> endpoint/token masked. (existing endpoint convention)
+        expect2(await controller.doGetChannel(id, {}, undefined, { domain: 'test.com' })).toEqual({
+            channel: id,
+            endpoint: 'https://exam',
+            stereo: 'chatic',
+            channelId: 'C001',
+            token: '****1234',
+        });
+
+        //* read via local context -> unmasked.
+        expect2(await controller.doGetChannel(id, {}, undefined, { domain: 'localhost' })).toEqual({
+            channel: id,
+            endpoint: 'https://example.com/hello/chat-send',
+            stereo: 'chatic',
+            channelId: 'C001',
+            token: 'super-secret-1234',
+        });
+
+        //* update w/ routing rules -> merged into the model. (consumed by `SlackService.route()`)
+        const updated = await controller.doPostChannel(
+            id,
+            {},
+            { rules: [{ pattern: '/./', copyTo: 'error' }] },
+            { domain: 'localhost' },
+        );
+        expect2(updated, 'rules').toEqual({ rules: [{ pattern: '/./', copyTo: 'error' }] });
     });
 });

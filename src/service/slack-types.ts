@@ -57,6 +57,12 @@ export interface RouteRule {
     forward?: string;
 }
 
+/**
+ * type: `ChannelStereo`
+ * - target format adapter of channel. `''` (or absent) and `'slack'` mean the default slack format.
+ */
+export type ChannelStereo = '' | 'slack' | 'chatic';
+
 export interface SlackChannelModel {
     /**
      * id of channel
@@ -83,6 +89,21 @@ export interface SlackChannelModel {
     endpoint?: string;
 
     /**
+     * (optional) stereo of target format adapter. ex) 'chatic' (default is slack)
+     */
+    stereo?: ChannelStereo;
+
+    /**
+     * (optional) target channel-id in `stereo` format. (ex: DoU channel-id for `chatic`)
+     */
+    channelId?: string;
+
+    /**
+     * (optional) service token to authenticate the request to `endpoint`.
+     */
+    token?: string;
+
+    /**
      * flag to use S3 for message body storage.
      */
     useS3?: boolean;
@@ -104,4 +125,25 @@ export interface SlackResponse<T = string> {
     statusCode: number;
     /** status message */
     statusMessage: string;
+}
+
+/**
+ * type: `ChaticWebhookMeta`
+ * - structured meta contract carried in `stereo: 'webhook'` chat messages.
+ */
+export interface ChaticWebhookMeta {
+    /** source header. ex) 'error-report: chatic-sockets-api/lemon-production#0.26.710' */
+    pretext?: string;
+    /** title of message */
+    title?: string;
+    /** body text */
+    text?: string;
+    /** key-value fields */
+    fields?: { title?: string; value: string | number }[];
+    /** severity color. ex) 'danger' | 'warning' | 'good' | '#hex' */
+    color?: string;
+    /** footer origin string. ex) 'chatic-sockets-api/lemon-production#0.26.710' */
+    footer?: string;
+    /** url of the full original payload (S3) */
+    sourceUrl?: string;
 }
