@@ -43,7 +43,7 @@
         "plato": "plato -r -d complexity dist"
     },
     "dependencies": {
-        "lemon-core": "^4.0.8"
+        "lemon-core": "^4.2.7"
     },
     "devDependencies": {
         "@cruglobal/serverless-merge-config": "^1.1.0",
@@ -61,7 +61,7 @@
         "eslint-config-prettier": "^8.5.0",
         "eslint-plugin-prettier": "^4.0.0",
         "jest": "^27.5.1",
-        "lemon-devkit": "^0.0.3",
+        "lemon-devkit": "^0.2.0",
         "lint-staged": "^13.1.0",
         "nodemon": "^2.0.20",
         "prettier": "^2.6.2",
@@ -74,6 +74,7 @@
         "supertest": "^4.0.2",
         "ts-jest": "^27.1.4",
         "ts-node": "8.1.0",
+        "ts-transformer-keys": "^0.4.4",
         "tsconfig-paths": "^4.1.2",
         "ttypescript": "^1.5.15",
         "typedoc": "^0.22.15",
