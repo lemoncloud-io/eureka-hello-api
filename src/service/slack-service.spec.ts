@@ -121,28 +121,37 @@ describe('slack-service /w dummy', () => {
         if (1) {
             expect2(() => asChaticContent({ text: 'hello' })).toEqual('hello');
             expect2(() => asChaticContent({})).toEqual('');
+            //* w/ attachments -> summary lines only: `title` -> `pretext` in order.
             expect2(() =>
                 asChaticContent({
                     text: 'hello',
                     attachments: [
                         {
-                            pretext: 'P',
-                            title: 'T',
+                            pretext: '401 UNAUTHORIZED - not authenticated @invite.list',
+                            title: 'error-report: `chatic-sockets-api/lemon-production#0.26.710`',
                             text: 'X',
-                            fields: [
-                                { title: 'F', value: 1 },
-                                { title: '', value: 'v2' },
-                            ],
+                            fields: [{ title: 'F', value: 1 }],
                         },
                     ],
                 }),
-            ).toEqual('hello\nP\nT\nX\nF: 1\nv2');
+            ).toEqual(
+                'error-report: `chatic-sockets-api/lemon-production#0.26.710`\n' +
+                    '401 UNAUTHORIZED - not authenticated @invite.list',
+            );
 
-            //* long/object `text` is dropped - key lines only (full payload is delegated to `sourceUrl`).
+            //* long/object `text` never inlined - summary only (full payload is delegated to `meta.sourceUrl`).
             expect2(() =>
                 asChaticPayload('C001', { attachments: [{ pretext: 'P', title: 'T', text: { a: 1 } as any }] }),
-            ).toEqual({ channelId: 'C001', content: 'P\nT', stereo: 'webhook', meta: { pretext: 'P', title: 'T' } });
+            ).toEqual({ channelId: 'C001', content: 'T\nP', stereo: 'webhook', meta: { pretext: 'P', title: 'T' } });
             expect2(() => asChaticContent({ attachments: [{ title: 'T', text: 'x'.repeat(501) }] })).toEqual('T');
+
+            //* edge: no title/pretext -> falls back to a short attachment text (500 chars boundary kept).
+            expect2(() => asChaticContent({ attachments: [{ text: 'only-text' }] })).toEqual('only-text');
+            expect2(() => asChaticContent({ attachments: [{ text: 'x'.repeat(500) }] })).toEqual('x'.repeat(500));
+            expect2(() => asChaticContent({ attachments: [{ text: 'x'.repeat(501) }] })).toEqual('');
+
+            //* edge: all empty -> `meta` itself is omitted.
+            expect2(() => asChaticPayload('C001', {})).toEqual({ channelId: 'C001', content: '', stereo: 'webhook' });
 
             //* w/o attachments -> `meta.text` falls back to `body.text` (only field body carries).
             expect2(() => asChaticPayload('C001', { text: 'hi' })).toEqual({
@@ -162,6 +171,8 @@ describe('slack-service /w dummy', () => {
                             title: 'T',
                             text: 'X',
                             color: 'danger',
+                            username: 'hello-alarm',
+                            ts: 1755000000,
                             footer: 'chatic-sockets-api/lemon-production#0.26.710',
                             fields: [
                                 { title: 'F', value: 1 },
@@ -172,24 +183,26 @@ describe('slack-service /w dummy', () => {
                 }),
             ).toEqual({
                 channelId: 'C001',
-                content: 'hello\nP\nT\nX\nF: 1\nv2',
+                content: 'T\nP',
                 stereo: 'webhook',
                 meta: {
                     pretext: 'P',
                     title: 'T',
                     text: 'X',
                     color: 'danger',
+                    username: 'hello-alarm',
+                    ts: 1755000000,
                     footer: 'chatic-sockets-api/lemon-production#0.26.710',
                     fields: [{ title: 'F', value: 1 }, { value: 'v2' }],
                 },
             });
 
-            //* w/ `sourceUrl` -> appended as the last raw-url line of `content` + carried in `meta.sourceUrl`.
+            //* w/ `sourceUrl` -> carried in `meta.sourceUrl` only (not in `content` - app renders the link).
             expect2(() =>
                 asChaticPayload('C001', { text: 'hi' }, { sourceUrl: 'https://s3.example.com/o.json' }),
             ).toEqual({
                 channelId: 'C001',
-                content: 'hi\nhttps://s3.example.com/o.json',
+                content: 'hi',
                 stereo: 'webhook',
                 meta: { text: 'hi', sourceUrl: 'https://s3.example.com/o.json' },
             });
@@ -248,8 +261,7 @@ describe('slack-service /w dummy', () => {
                 },
             });
 
-            //* chatic channel w/ `$s3s` configured -> uploads original message, appends raw url to `content`,
-            //  and carries `meta.sourceUrl`.
+            //* chatic channel w/ `$s3s` configured -> uploads original message, carries `meta.sourceUrl` only.
             const s3Calls: { json: string }[] = [];
             const $s3s = {
                 bucket: () => 'test-bucket',
@@ -273,7 +285,7 @@ describe('slack-service /w dummy', () => {
                 endpoint: 'http://example.com/chat-send',
                 message: {
                     channelId: 'C001',
-                    content: 'hello\nhttps://s3.example.com/k.json',
+                    content: 'hello',
                     stereo: 'webhook',
                     token: 'secret-token',
                     meta: {

@@ -23,23 +23,14 @@ export const asShortText = (text: any): string | undefined =>
     typeof text === 'string' && text.length > 0 && text.length <= TEXT_LIMIT ? text : undefined;
 
 /**
- * compose plain-text content from a slack message.
- * - joins `.text` and each attachment's `pretext`/`title`/`text`/`fields`.
- * - a long/object `text` is omitted — key lines + `sourceUrl` only.
+ * compose summary content (notification preview) from a slack message.
+ * - the first attachment's `title` -> `pretext` lines in order; detail rendering is delegated to `meta` (app).
+ * - a plain message (no attachments) falls back to a short `.text`.
  */
 export const asChaticContent = (body: SlackMessage): string => {
-    const lines: string[] = [];
-    if (body?.text) lines.push(asShortText(body.text));
-    (body?.attachments || []).forEach(({ pretext, title, text, fields }) => {
-        if (pretext) lines.push(`${pretext}`);
-        if (title) lines.push(`${title}`);
-        if (text) lines.push(asShortText(text));
-        (fields || []).forEach(field => {
-            if (field?.value === undefined || field?.value === null) return;
-            lines.push(field.title ? `${field.title}: ${field.value}` : `${field.value}`);
-        });
-    });
-    return lines.filter(N => !!N).join('\n');
+    const attachment = (body?.attachments || [])[0];
+    const summary = attachment ? [attachment.title, attachment.pretext].filter(N => !!N).join('\n') : '';
+    return summary || asShortText(attachment?.text ?? body?.text) || '';
 };
 
 /**
@@ -58,6 +49,8 @@ export const asChaticMeta = (body: SlackMessage): Omit<ChaticWebhookMeta, 'sourc
         text: asShortText(attachment?.text ?? body?.text),
         fields: fields.length > 0 ? fields : undefined,
         color: attachment?.color,
+        username: attachment?.username,
+        ts: attachment?.ts,
         footer: attachment?.footer,
     });
 };
@@ -69,7 +62,7 @@ export const asChaticMeta = (body: SlackMessage): Omit<ChaticWebhookMeta, 'sourc
  *
  * @param channelId target channel-id in `chatic`.
  * @param body      slack message to convert.
- * @param options.sourceUrl (optional) S3 url of the full original payload, appended to `content` + carried in `meta.sourceUrl`.
+ * @param options.sourceUrl (optional) S3 url of the full original payload, carried in `meta.sourceUrl` only (app renders the link).
  * @param options.token     (optional) service token to authenticate the request. (omitted if not given)
  */
 export const asChaticPayload = (
@@ -78,7 +71,7 @@ export const asChaticPayload = (
     options?: { sourceUrl?: string; token?: string },
 ): { channelId: string; content: string; stereo: string; token?: string; meta?: ChaticWebhookMeta } => {
     const sourceUrl = options?.sourceUrl;
-    const content = [asChaticContent(body), sourceUrl].filter(N => !!N).join('\n');
+    const content = asChaticContent(body);
     const meta = onlyDefined({ ...asChaticMeta(body), sourceUrl });
     return onlyDefined({
         channelId,

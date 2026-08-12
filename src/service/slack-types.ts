@@ -142,6 +142,10 @@ export interface ChaticWebhookMeta {
     fields?: { title?: string; value: string | number }[];
     /** severity color. ex) 'danger' | 'warning' | 'good' | '#hex' */
     color?: string;
+    /** sender display name. ex) 'hello-alarm' */
+    username?: string;
+    /** timestamp (epoch seconds) of the report */
+    ts?: number;
     /** footer origin string. ex) 'chatic-sockets-api/lemon-production#0.26.710' */
     footer?: string;
     /** url of the full original payload (S3) */
