@@ -51,6 +51,13 @@ custom:
     dev: eureka-hello-sqs-dev
     prod: eureka-hello-sqs
   #------------------------------------------------
+  # S3 Bucket (to store the original message body)
+  #------------------------------------------------
+  bucketName:
+    local: eureka-hello-www-dev
+    dev: eureka-hello-www-dev
+    prod: eureka-hello-www
+  #------------------------------------------------
   # SNS Registration
   #------------------------------------------------
   topicName:
@@ -143,6 +150,11 @@ provider:
       Action:
         - sns:Publish
       Resource: ${self:custom.topicArn}
+    # S3 to store the original message body
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+      Resource: "arn:aws:s3:::${self:custom.bucketName.${self:custom.CORE.stage}}/*"
     # KMS to verify the identity
     - Effect: Allow
       Action:
@@ -173,6 +185,7 @@ provider:
     MY_DYNAMO_TABLE: '${self:custom.tableName.${self:custom.CORE.stage}}'
     MY_SQS_ENDPOINT: 'https://sqs.${self:provider.region}.amazonaws.com/${aws:accountId}/${self:custom.queueName.${self:custom.CORE.stage}}' # see `sqs-service`
     MY_SNS_ENDPOINT: 'arn:aws:sns:${self:provider.region}:${aws:accountId}:${self:custom.topicName.${self:custom.CORE.stage}}'               # see `sns-service`
+    MY_S3_BUCKET: '${self:custom.bucketName.${self:custom.CORE.stage}}'                                                                      # see `slack-service`
     $<<: ${file(./env/${self:custom.CONF.${self:custom.CORE.profile}.env}):${self:custom.CORE.stage}}
 
 #------------------------------------------------
@@ -365,3 +378,48 @@ resources:
       Type: 'AWS::SNS::Topic'
       Properties:
         TopicName: '${self:custom.topicName.${self:custom.CORE.stage}}'
+
+    # -------------------------------
+    # S3 Bucket (to store the original message body, public-read via link)
+    # -------------------------------
+    MyS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+        OwnershipControls:
+          Rules:
+            - ObjectOwnership: ObjectWriter
+        BucketName: '${self:custom.bucketName.${self:custom.CORE.stage}}'
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - HEAD
+              MaxAge: 3000
+    MyS3BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: MyS3Bucket
+        PolicyDocument:
+          Statement:
+            - Sid: PublicReadGetObject
+              Effect: Allow
+              Principal: "*"
+              Action:
+                - s3:GetObject
+              Resource:
+                Fn::Join: [
+                  "", [
+                    "arn:aws:s3:::",
+                    {
+                      "Ref": "MyS3Bucket"
+                    },
+                    "/*"
+                  ]
+                ]
