@@ -173,8 +173,8 @@ export class HelloAPIController extends GeneralWEBController {
             body && typeof body === 'object' ? body : { text: `${body}`, attachments: undefined };
         _log(NS, '> message :=', $U.json(message));
 
-        // STEP.3 send to slack.
-        const channel: string = id ? id : undefined;
+        // STEP.3 send to slack. (no channel falls back to `body.channel`, then `public` so its routing rules apply)
+        const channel: string = id ? id : $T.S2(message?.channel).trim() || 'public';
         const $res = await this.service.$slack.route(message, { channel });
         _log(NS, `> sent[${channel ?? ''}] =`, $U.json($res?.$sent));
 

@@ -118,5 +118,29 @@ describe('hello-controller', () => {
             { domain: 'localhost' },
         );
         expect2(updated, 'rules').toEqual({ rules: [{ pattern: '/./', copyTo: 'error' }] });
+
+        //* no channel -> routed via `public` so its routing rules apply. (auto error-report path)
+        const sent: { endpoint: string; message: any }[] = [];
+        (service.$slack as any).postMessage = async (endpoint: string, message: any) => {
+            sent.push({ endpoint, message });
+            return { statusCode: 100, statusMessage: 'ok' };
+        };
+        await controller.doPostChannel(
+            'public',
+            {},
+            { endpoint: 'http://slack.example.com', rules: [{ pattern: '/./', copyTo: id }] },
+            { domain: 'localhost' },
+        );
+        await controller.doPostSlack('0', {}, { attachments: [{ title: 'T' }] }, { domain: 'localhost' });
+        expect2(() => sent.map(N => N.endpoint)).toEqual([
+            'https://example.com/hello/chat-send',
+            'http://slack.example.com',
+        ]);
+        expect2(() => sent[0].message, 'channelId,stereo').toEqual({ channelId: 'C001', stereo: 'webhook' });
+
+        //* no id but `body.channel` -> respected over the `public` fallback. (see jsdoc of `doPostSlack`)
+        sent.length = 0;
+        await controller.doPostSlack('0', {}, { text: 'hello', channel: id }, { domain: 'localhost' });
+        expect2(() => sent.map(N => N.endpoint)).toEqual(['https://example.com/hello/chat-send']);
     });
 });
