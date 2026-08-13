@@ -58,23 +58,21 @@ export const asChaticMeta = (body: SlackMessage): Omit<ChaticWebhookMeta, 'sourc
 /**
  * build the payload of `chatic` channel from a slack message.
  * - see `POST /hello/chat-send` of `chatic-socials-api`.
+ * - the target channel is resolved by the receiver from the endpoint url. (ex: `?channelId=...`)
  * - the service `token` is carried in the body (not a header), since the receiving handler cannot read custom headers.
  *
- * @param channelId target channel-id in `chatic`.
  * @param body      slack message to convert.
  * @param options.sourceUrl (optional) S3 url of the full original payload, carried in `meta.sourceUrl` only (app renders the link).
  * @param options.token     (optional) service token to authenticate the request. (omitted if not given)
  */
 export const asChaticPayload = (
-    channelId: string,
     body: SlackMessage,
     options?: { sourceUrl?: string; token?: string },
-): { channelId: string; content: string; stereo: string; token?: string; meta?: ChaticWebhookMeta } => {
+): { content: string; stereo: string; token?: string; meta?: ChaticWebhookMeta } => {
     const sourceUrl = options?.sourceUrl;
     const content = asChaticContent(body);
     const meta = onlyDefined({ ...asChaticMeta(body), sourceUrl });
     return onlyDefined({
-        channelId,
         content,
         stereo: 'webhook',
         token: options?.token,

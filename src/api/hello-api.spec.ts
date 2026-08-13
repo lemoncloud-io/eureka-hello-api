@@ -77,18 +77,16 @@ describe('hello-controller', () => {
             id,
             {},
             {
-                endpoint: 'https://example.com/hello/chat-send',
+                endpoint: 'https://example.com/hello/chat-send?channelId=C001',
                 stereo: 'chatic',
-                channelId: 'C001',
                 token: 'super-secret-1234',
             },
             { domain: 'localhost' },
         );
         expect2(saved).toEqual({
             channel: id,
-            endpoint: 'https://example.com/hello/chat-send',
+            endpoint: 'https://example.com/hello/chat-send?channelId=C001',
             stereo: 'chatic',
-            channelId: 'C001',
             token: 'super-secret-1234',
         });
 
@@ -97,16 +95,14 @@ describe('hello-controller', () => {
             channel: id,
             endpoint: 'https://exam',
             stereo: 'chatic',
-            channelId: 'C001',
             token: '****1234',
         });
 
         //* read via local context -> unmasked.
         expect2(await controller.doGetChannel(id, {}, undefined, { domain: 'localhost' })).toEqual({
             channel: id,
-            endpoint: 'https://example.com/hello/chat-send',
+            endpoint: 'https://example.com/hello/chat-send?channelId=C001',
             stereo: 'chatic',
-            channelId: 'C001',
             token: 'super-secret-1234',
         });
 
@@ -133,14 +129,14 @@ describe('hello-controller', () => {
         );
         await controller.doPostSlack('0', {}, { attachments: [{ title: 'T' }] }, { domain: 'localhost' });
         expect2(() => sent.map(N => N.endpoint)).toEqual([
-            'https://example.com/hello/chat-send',
+            'https://example.com/hello/chat-send?channelId=C001',
             'http://slack.example.com',
         ]);
-        expect2(() => sent[0].message, 'channelId,stereo').toEqual({ channelId: 'C001', stereo: 'webhook' });
+        expect2(() => sent[0].message, 'stereo').toEqual({ stereo: 'webhook' });
 
         //* no id but `body.channel` -> respected over the `public` fallback. (see jsdoc of `doPostSlack`)
         sent.length = 0;
         await controller.doPostSlack('0', {}, { text: 'hello', channel: id }, { domain: 'localhost' });
-        expect2(() => sent.map(N => N.endpoint)).toEqual(['https://example.com/hello/chat-send']);
+        expect2(() => sent.map(N => N.endpoint)).toEqual(['https://example.com/hello/chat-send?channelId=C001']);
     });
 });

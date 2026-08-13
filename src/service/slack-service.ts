@@ -320,12 +320,11 @@ export class SlackService {
         //* send via endpoint.
         const _send = async () => {
             if (endpoint?.startsWith('http://') || endpoint?.startsWith('https://')) {
-                //* `chatic` channel - convert to `{channelId, content, stereo, token}`. (token carried in body)
+                //* `chatic` channel - convert to `{content, stereo, token}`. (target channel is in the endpoint url)
                 const isChatic = stereo === 'chatic';
-                const channelId = target?.channelId || parent?.channelId;
                 const token = target?.token || parent?.token;
                 const sourceUrl = isChatic ? await this.saveChaticSourceToS3(message, isUseS3) : undefined;
-                const $body = isChatic ? asChaticPayload(channelId, message, { sourceUrl, token }) : message;
+                const $body = isChatic ? asChaticPayload(message, { sourceUrl, token }) : message;
                 const $sent = await this.postMessage(endpoint, $body).catch<SlackResponse>(e => {
                     _err(NS, `! err.send:${channel ?? ''} =`, e);
                     return { statusCode: 500, statusMessage: `${GETERR(e)} - ${errScope}` };

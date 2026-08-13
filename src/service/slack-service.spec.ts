@@ -141,8 +141,8 @@ describe('slack-service /w dummy', () => {
 
             //* long/object `text` never inlined - summary only (full payload is delegated to `meta.sourceUrl`).
             expect2(() =>
-                asChaticPayload('C001', { attachments: [{ pretext: 'P', title: 'T', text: { a: 1 } as any }] }),
-            ).toEqual({ channelId: 'C001', content: 'T\nP', stereo: 'webhook', meta: { pretext: 'P', title: 'T' } });
+                asChaticPayload({ attachments: [{ pretext: 'P', title: 'T', text: { a: 1 } as any }] }),
+            ).toEqual({ content: 'T\nP', stereo: 'webhook', meta: { pretext: 'P', title: 'T' } });
             expect2(() => asChaticContent({ attachments: [{ title: 'T', text: 'x'.repeat(501) }] })).toEqual('T');
 
             //* edge: no title/pretext -> falls back to a short attachment text (500 chars boundary kept).
@@ -151,11 +151,10 @@ describe('slack-service /w dummy', () => {
             expect2(() => asChaticContent({ attachments: [{ text: 'x'.repeat(501) }] })).toEqual('');
 
             //* edge: all empty -> `meta` itself is omitted.
-            expect2(() => asChaticPayload('C001', {})).toEqual({ channelId: 'C001', content: '', stereo: 'webhook' });
+            expect2(() => asChaticPayload({})).toEqual({ content: '', stereo: 'webhook' });
 
             //* w/o attachments -> `meta.text` falls back to `body.text` (only field body carries).
-            expect2(() => asChaticPayload('C001', { text: 'hi' })).toEqual({
-                channelId: 'C001',
+            expect2(() => asChaticPayload({ text: 'hi' })).toEqual({
                 content: 'hi',
                 stereo: 'webhook',
                 meta: { text: 'hi' },
@@ -163,7 +162,7 @@ describe('slack-service /w dummy', () => {
 
             //* w/ attachments -> `meta` extracted from the first attachment (representative), incl. `footer`.
             expect2(() =>
-                asChaticPayload('C001', {
+                asChaticPayload({
                     text: 'hello',
                     attachments: [
                         {
@@ -182,7 +181,6 @@ describe('slack-service /w dummy', () => {
                     ],
                 }),
             ).toEqual({
-                channelId: 'C001',
                 content: 'T\nP',
                 stereo: 'webhook',
                 meta: {
@@ -198,18 +196,14 @@ describe('slack-service /w dummy', () => {
             });
 
             //* w/ `sourceUrl` -> carried in `meta.sourceUrl` only (not in `content` - app renders the link).
-            expect2(() =>
-                asChaticPayload('C001', { text: 'hi' }, { sourceUrl: 'https://s3.example.com/o.json' }),
-            ).toEqual({
-                channelId: 'C001',
+            expect2(() => asChaticPayload({ text: 'hi' }, { sourceUrl: 'https://s3.example.com/o.json' })).toEqual({
                 content: 'hi',
                 stereo: 'webhook',
                 meta: { text: 'hi', sourceUrl: 'https://s3.example.com/o.json' },
             });
 
             //* w/ `token` -> carried in the body (no headers), omitted if not given.
-            expect2(() => asChaticPayload('C001', { text: 'hi' }, { token: 'secret-token' })).toEqual({
-                channelId: 'C001',
+            expect2(() => asChaticPayload({ text: 'hi' }, { token: 'secret-token' })).toEqual({
                 content: 'hi',
                 stereo: 'webhook',
                 token: 'secret-token',
@@ -227,16 +221,14 @@ describe('slack-service /w dummy', () => {
 
             //* chatic channel w/ token -> converted body incl. `token`.
             await service.$channel.save('chatic1', {
-                endpoint: 'http://example.com/chat-send',
+                endpoint: 'http://example.com/chat-send?channelId=C001',
                 stereo: 'chatic',
-                channelId: 'C001',
                 token: 'secret-token',
             });
             await service.send({ text: 'hello' }, { channel: 'chatic1' });
             expect2(calls.pop()).toEqual({
-                endpoint: 'http://example.com/chat-send',
+                endpoint: 'http://example.com/chat-send?channelId=C001',
                 message: {
-                    channelId: 'C001',
                     content: 'hello',
                     stereo: 'webhook',
                     token: 'secret-token',
@@ -246,15 +238,13 @@ describe('slack-service /w dummy', () => {
 
             //* chatic channel w/o token -> converted body, no `token` field.
             await service.$channel.save('chatic2', {
-                endpoint: 'http://example.com/chat-send2',
+                endpoint: 'http://example.com/chat-send2?channelId=C002',
                 stereo: 'chatic',
-                channelId: 'C002',
             });
             await service.send({ text: 'hi' }, { channel: 'chatic2' });
             expect2(calls.pop()).toEqual({
-                endpoint: 'http://example.com/chat-send2',
+                endpoint: 'http://example.com/chat-send2?channelId=C002',
                 message: {
-                    channelId: 'C002',
                     content: 'hi',
                     stereo: 'webhook',
                     meta: { text: 'hi' },
@@ -282,9 +272,8 @@ describe('slack-service /w dummy', () => {
             await service2.send({ text: 'hello' }, { channel: 'chatic1' });
             expect2(() => JSON.parse(s3Calls.pop()?.json)).toEqual({ channel: 'chatic1', text: 'hello' });
             expect2(calls.pop()).toEqual({
-                endpoint: 'http://example.com/chat-send',
+                endpoint: 'http://example.com/chat-send?channelId=C001',
                 message: {
-                    channelId: 'C001',
                     content: 'hello',
                     stereo: 'webhook',
                     token: 'secret-token',
@@ -313,9 +302,8 @@ describe('slack-service /w dummy', () => {
             })();
             await service3.send({ text: 'hi' }, { channel: 'chatic2' });
             expect2(calls.pop()).toEqual({
-                endpoint: 'http://example.com/chat-send2',
+                endpoint: 'http://example.com/chat-send2?channelId=C002',
                 message: {
-                    channelId: 'C002',
                     content: 'hi',
                     stereo: 'webhook',
                     meta: { text: 'hi' },

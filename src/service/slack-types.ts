@@ -94,11 +94,6 @@ export interface SlackChannelModel {
     stereo?: ChannelStereo;
 
     /**
-     * (optional) target channel-id in `stereo` format. (ex: DoU channel-id for `chatic`)
-     */
-    channelId?: string;
-
-    /**
      * (optional) service token to authenticate the request to `endpoint`.
      */
     token?: string;

@@ -257,7 +257,6 @@ export class HelloAPIController extends GeneralWEBController {
             endpoint: body?.endpoint !== undefined ? $T.S2(body?.endpoint) : undefined,
             useS3: body?.useS3 !== undefined ? !!$T.B(body?.useS3) : undefined,
             stereo: body?.stereo !== undefined ? $T.S2(body?.stereo) : undefined,
-            channelId: body?.channelId !== undefined ? $T.S2(body?.channelId) : undefined,
             token: body?.token !== undefined ? $T.S2(body?.token) : undefined,
             rules: Array.isArray(body?.rules)
                 ? (body.rules as any[]).map(N =>
