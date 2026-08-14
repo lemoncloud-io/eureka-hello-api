@@ -15,7 +15,7 @@ import $service, { HelloService } from '../service/hello-service';
 import { SlackResponse, SlackMessage, SlackTransformer } from '../service/slack-service';
 import { ALBNextHandler } from 'lemon-core/dist/cores/lambda/lambda-alb-handler';
 import { PostSnsBody, PostSqsBody, MessagePayload } from '../service/views';
-import { SlackChannelModel } from '../service/slack-types';
+import { RouteRule, SlackChannelModel } from '../service/slack-types';
 const NS = $U.NS('hello', 'yellow'); // NAMESPACE TO BE PRINTED.
 
 /**
@@ -173,8 +173,8 @@ export class HelloAPIController extends GeneralWEBController {
             body && typeof body === 'object' ? body : { text: `${body}`, attachments: undefined };
         _log(NS, '> message :=', $U.json(message));
 
-        // STEP.3 send to slack.
-        const channel: string = id ? id : undefined;
+        // STEP.3 send to slack. (no channel falls back to `body.channel`, then `public` so its routing rules apply)
+        const channel: string = id ? id : $T.S2(message?.channel).trim() || 'public';
         const $res = await this.service.$slack.route(message, { channel });
         _log(NS, `> sent[${channel ?? ''}] =`, $U.json($res?.$sent));
 
@@ -236,11 +236,18 @@ export class HelloAPIController extends GeneralWEBController {
         _log(NS, `> body =`, $U.json(body));
         const isGet = !body;
 
+        // mask a secret token for non-local response. ex) 'super-secret' -> '****cret'
+        const _maskToken = (token: string): string => (token ? `****${token.slice(-4)}` : token);
+
         const isLocal = context?.domain === 'localhost';
         const $org = await this.service.$slack.default(id);
         if (isGet) {
             if (!$org) throw new Error(`404 NOT FOUND - no channel data @${errScope}`);
-            return { ...$org, endpoint: !isLocal ? $org?.endpoint?.substring(0, 12) : $org?.endpoint };
+            return {
+                ...$org,
+                endpoint: !isLocal ? $org?.endpoint?.substring(0, 12) : $org?.endpoint,
+                token: !isLocal ? _maskToken($org?.token) : $org?.token,
+            };
         }
 
         // build model to update.
@@ -249,6 +256,18 @@ export class HelloAPIController extends GeneralWEBController {
             name: body?.name !== undefined ? $T.S2(body?.name) : undefined,
             endpoint: body?.endpoint !== undefined ? $T.S2(body?.endpoint) : undefined,
             useS3: body?.useS3 !== undefined ? !!$T.B(body?.useS3) : undefined,
+            stereo: body?.stereo !== undefined ? $T.S2(body?.stereo) : undefined,
+            token: body?.token !== undefined ? $T.S2(body?.token) : undefined,
+            rules: Array.isArray(body?.rules)
+                ? (body.rules as any[]).map(N =>
+                      onlyDefined<RouteRule>({
+                          pattern: $T.S2(N?.pattern),
+                          copyTo: N?.copyTo !== undefined ? $T.S2(N?.copyTo) : undefined,
+                          moveTo: N?.moveTo !== undefined ? $T.S2(N?.moveTo) : undefined,
+                          color: N?.color !== undefined ? $T.S2(N?.color) : undefined,
+                      }),
+                  )
+                : undefined,
         });
 
         // update (or delete)
