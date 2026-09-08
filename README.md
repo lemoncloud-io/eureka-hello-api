@@ -78,11 +78,3 @@ Version History
 |--         |--
 | 0.24.511  | optimized with `lemon-core#3.2.15`.
 | 0.24.1127 | initial version with `lemon-core#3.2.10`.
-
-<!-- lemon-devkit:proxy-doc:start -->
-## Proxy
-
-`lemon-devkit@0.0.12`부터 install/upgrade 시 consumer project의 `docs/proxy-implementation-guide.md`와 `README.md`에 proxy 구현 가이드를 자동 반영한다.
-Proxy 기능을 추가하거나 변경할 때는 [lemon-devkit proxy implementation guide](docs/proxy-implementation-guide.md)를 먼저 확인한다.
-`BackendProxy`, `ManagerProxy`, `guardProxy()` 계열 동작과 프로젝트 적용 절차는 이 문서 기준으로 맞춘다.
-<!-- lemon-devkit:proxy-doc:end -->
