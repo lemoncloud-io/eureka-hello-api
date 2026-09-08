@@ -111,7 +111,7 @@ export class HelloAPIController extends GeneralWEBController {
         const i = $U.N(id, 0);
         if (i) throw new Error(`@id[${id}] (number) is invalid - ${errScope}`);
         if (!body?.name) throw new Error(`.name (string) is required - ${errScope}`);
-        const name = $T.S2(body?.name, '', ' ').trim(); // clear new-lines
+        const name = $T.S2(body?.name, '').trim(); // clear new-lines
         const model: TestModel = { name, _id: `${this.BUFF.length}` };
         this.BUFF.push(model);
 
