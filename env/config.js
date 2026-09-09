@@ -25,6 +25,14 @@ const CONF = (serverless) => {
             runtime: 'nodejs22.x',                              // Node is powered by the V8 JavaScript Engine (used in Chromium)
             region: 'ap-northeast-2',                           // AWS Region to deploy.
             env: 'none.yml',                                    // Environment definitions.
+            bucket: 'eureka-hello-www',                         // Name of S3 bucket. (must be unique across all accounts)
+        },
+        ssocio: {
+            name: 'ssocio-app',
+            runtime: 'nodejs22.x',
+            region: 'ap-northeast-2',
+            env: 'ssocio.yml',                                  // Environment definitions.
+            bucket: 'eureka-ssocio-hello-www',
         },
     };
 }
