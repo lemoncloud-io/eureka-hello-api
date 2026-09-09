@@ -1,0 +1,32 @@
+#-----------------------------------
+# `ssocio` account.
+# - subscribes the existing report topic of that account, and forwards to the chat channel.
+#-----------------------------------
+# default
+default_env: &default_env
+  LS: 0                   # log silence.
+  LC: 1                   # line-coloring
+  TS: 1                   # time-stamp in line
+  NAME: 'ssocio'          # profile name.
+  REPORT_ERROR: 0         # do not self-report. the fallback topic is the one this instance subscribes.
+  MY_S3_BUCKET: eureka-ssocio-hello-www   # S3 Bucket to use.
+
+#-----------------------------------
+# local development configuration.
+local:
+  <<: *default_env
+  STAGE: 'local'
+
+#-----------------------------------
+# development server
+dev:
+  <<: *default_env
+  STAGE: 'develop'
+
+#-----------------------------------
+# production with AWS deploy
+prod:
+  <<: *default_env
+  STAGE: 'production'
+  NS: SS
+  TS: 0
