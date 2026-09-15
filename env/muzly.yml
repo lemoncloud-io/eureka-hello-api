@@ -1,0 +1,32 @@
+#-----------------------------------
+# `muzly` account.
+# - owns the report topic `eureka-hello-sns[-dev]` that the other services of this account publish errors to,
+#   and forwards them to the chat channel (channel endpoint is registered as a channel model, not env).
+#-----------------------------------
+# default
+default_env: &default_env
+  LS: 0                   # log silence.
+  LC: 1                   # line-coloring
+  TS: 1                   # time-stamp in line
+  NAME: 'muzly'           # profile name.
+  REPORT_ERROR: 0         # do not self-report. the fallback topic is the one this instance subscribes.
+
+#-----------------------------------
+# local development configuration.
+local:
+  <<: *default_env
+  STAGE: 'local'
+
+#-----------------------------------
+# development server
+dev:
+  <<: *default_env
+  STAGE: 'develop'
+
+#-----------------------------------
+# production with AWS deploy
+prod:
+  <<: *default_env
+  STAGE: 'production'
+  NS: SS
+  TS: 0
