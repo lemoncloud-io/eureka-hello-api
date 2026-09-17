@@ -34,6 +34,13 @@ const CONF = (serverless) => {
             env: 'ssocio.yml',                                  // Environment definitions.
             bucket: 'eureka-ssocio-hello-www',
         },
+        muzly: {
+            name: 'muzly-app',
+            runtime: 'nodejs22.x',
+            region: 'ap-northeast-2',
+            env: 'muzly.yml',                                   // Environment definitions.
+            bucket: 'muzly-hello-www',
+        },
     };
 }
 
