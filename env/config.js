@@ -41,6 +41,13 @@ const CONF = (serverless) => {
             env: 'muzly.yml',                                   // Environment definitions.
             bucket: 'muzly-hello-www',
         },
+        epyt: {
+            name: 'epyt-app',
+            runtime: 'nodejs22.x',
+            region: 'ap-northeast-2',
+            env: 'epyt.yml',                                   // Environment definitions.
+            bucket: 'eureka-epyt-hello-www',
+        },
     };
 }
 
