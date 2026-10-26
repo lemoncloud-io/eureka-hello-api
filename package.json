@@ -1,6 +1,6 @@
 {
     "name": "eureka-hello-api",
-    "version": "0.26.813",
+    "version": "0.26.814",
     "description": "Simplified Boilerplate of Serverless API",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
