@@ -34,23 +34,17 @@ export const express = () => {
  *  MAIN RUNNER
  *
  * # Usage
- * - required to run `$ npm run express.lemon`
+ * - required to run `$ npm run express`
  *
  * ```sh
  * # run express in local
  * $ node .
- * # batch run from 1 to 2 page.
- * $ node . -ep forms -sid lemon -cmd run -opt 'dummy=1' -ipp 1 -page 1~2
  * ```
+ *
+ * - v5: the `lemon-core/dist/exec-cli` batch runner is gone (HOW_TO_UPGRADE_V5 § 12).
  ** *******************************************************************************************************************/
 if (typeof require !== 'undefined' && require.main === module) {
-    // console.log('! argv =', process.argv);
-    if (process.argv.length <= 2) {
-        const $express = express();
-        $express.createServer();
-    } else {
-        process.env['LS'] = '1';
-        const run = require('lemon-core/dist/exec-cli').default;
-        run();
-    }
+    //* start the local express server.
+    const $express = express();
+    $express.createServer();
 }

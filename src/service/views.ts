@@ -8,8 +8,8 @@
  * @copyright   (C) 2025 LemonCloud Co Ltd. - All Rights Reserved.
  * @origin      `@lemoncloud/codes-goods-api/modules/resource`
  */
-import { View, Body } from 'lemon-model';
-import { SnsPayload, MessagePayload } from './types';
+import { Body } from 'lemon-core'; //* v5: lemon-model root names from lemon-core (§ 16).
+import { MessagePayload } from './types';
 
 export interface PostSqsBody extends Body, Partial<MessagePayload> {}
 export interface PostSnsBody extends Body, Partial<MessagePayload> {}

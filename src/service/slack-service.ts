@@ -5,6 +5,7 @@
  *
  * @author      Steve Jung <steve@lemoncloud.io>
  * @date        2025-10-24 optimized from `lemon-hello-api`
+ * @date        2026-10-30 v5: `postMessage()` uses WHATWG `URL` (Node 24).
  *
  * @copyright (C) lemoncloud.io 2025 - All Rights Reserved. (https://eureka.codes)
  */
@@ -16,7 +17,6 @@ const NS = $U.NS('slack', 'blue'); // NAMESPACE TO BE PRINTED.
 
 //* import dependency
 import https from 'https';
-import url from 'url';
 
 /**
  * interface: `SlackMessage`
@@ -459,16 +459,18 @@ export class SlackService {
         message = typeof message == 'object' && message instanceof Promise ? await message : message;
         _log(NS, `> message = `, $U.json(message));
 
-        //TODO - improve `url.parse()` due to deprecated.
-        const options: any = url.parse(endpoint);
+        //* v5: WHATWG `URL` instead of `url.parse()` (Node 24 runtime warning DEP0169). same host/path/query.
+        const target = new URL(endpoint);
         const body = (typeof message == 'string' ? message : JSON.stringify(message)) || '';
-        options.method = 'POST';
-        options.headers = {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Content-Length': Buffer.byteLength(body),
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Content-Length': Buffer.byteLength(body),
+            },
         };
         return new Promise((resolve, reject) => {
-            const postReq = https.request(options, res => {
+            const postReq = https.request(target, options, res => {
                 const chunks: any[] = [];
                 res.setEncoding('utf8');
                 res.on('data', chunk => chunks.push(chunk));
