@@ -66,6 +66,7 @@ config:
     options:
       - nodejs18.x
       - nodejs22.x
+      - nodejs24.x
     defaultValue: nodejs18.x
     description: 'Runtime environment'
     immutable: 1
