@@ -5,18 +5,21 @@
  *
  * @author      Steve Jung <steve@lemoncloud.io>
  * @date        2024-11-27 initial version with `lemon-core#3.2.10`
+ * @date        2026-10-30 v5: local-only branches use `$U.isLocalMode()` (lemon-core#5.0.11).
  *
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
 import $cores, { $T, $U, _log, _inf, NextHandler, NextContext } from 'lemon-core';
-import { GeneralWEBController, $info, onlyDefined } from 'lemon-core';
+import { GeneralWEBController, $info, onlyDefined, LambdaALBHandler } from 'lemon-core';
 import { Model, TestModel } from '../service/hello-model';
 import $service, { HelloService } from '../service/hello-service';
 import { SlackResponse, SlackMessage, SlackTransformer } from '../service/slack-service';
-import { ALBNextHandler } from 'lemon-core/dist/cores/lambda/lambda-alb-handler';
 import { PostSnsBody, PostSqsBody, MessagePayload } from '../service/views';
 import { RouteRule, SlackChannelModel } from '../service/slack-types';
 const NS = $U.NS('hello', 'yellow'); // NAMESPACE TO BE PRINTED.
+
+//* v5: ALB handler type from the root class (no `lemon-core/dist/*` deep import; removed in v6).
+type ALBNextHandler = Parameters<LambdaALBHandler['setHandler']>[0];
 
 /**
  * class: `HelloAPIController`
@@ -239,7 +242,7 @@ export class HelloAPIController extends GeneralWEBController {
         // mask a secret token for non-local response. ex) 'super-secret' -> '****cret'
         const _maskToken = (token: string): string => (token ? `****${token.slice(-4)}` : token);
 
-        const isLocal = context?.domain === 'localhost';
+        const isLocal = $U.isLocalMode(); //* v5 B5: runtime local mode, never from `context.domain`.
         const $org = await this.service.$slack.default(id);
         if (isGet) {
             if (!$org) throw new Error(`404 NOT FOUND - no channel data @${errScope}`);
@@ -344,7 +347,7 @@ export class HelloAPIController extends GeneralWEBController {
     public doPostSqs: NextHandler = async (id, param, body: PostSqsBody, context) => {
         const errScope = `doPostSqs(${this.type()}/${id ?? ''})`;
         _log(NS, `${errScope} ...`);
-        const isLocal = context?.domain === 'localhost';
+        const isLocal = $U.isLocalMode(); //* v5 B5: runtime local mode, never from `context.domain`.
         // WARN! `service` is ONLY possible in local environment.
         const service = isLocal ? $T.S2(body?.service, $info().service) : $info().service;
         const $body = $T.onlyDefined<MessagePayload>({
@@ -363,7 +366,7 @@ export class HelloAPIController extends GeneralWEBController {
     public doPostSns: NextHandler = async (id, param, body: PostSnsBody, context) => {
         const errScope = `doPostSns(${this.type()}/${id ?? ''})`;
         _log(NS, `${errScope} ...`);
-        const isLocal = context?.domain === 'localhost';
+        const isLocal = $U.isLocalMode(); //* v5 B5: runtime local mode, never from `context.domain`.
         // WARN! `service` is ONLY possible in local environment.
         const service = isLocal ? $T.S2(body?.service, $info().service) : $info().service;
         const $body = $T.onlyDefined<MessagePayload>({

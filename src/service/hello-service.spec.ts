@@ -179,7 +179,11 @@ describe('model-manager in service', () => {
                 host,
             };
         };
+        //* opt-in E2E against the deployed dev API: needs a profile (`ENV=<profile>`) with credentials.
+        //* without them, skip here (no unsigned request to AWS from `npm test`).
+        if (!PROFILE) return;
         const sigConfig = await loadSigConfig(PROFILE);
+        if (!sigConfig) return;
         const proxy = createSigV4Proxy(name, endpoint, sigConfig);
 
         //* STEP 1: DynamoDB에 "원본" 데이터 Save → 검증 (POST /hello/<id>/dynamo)

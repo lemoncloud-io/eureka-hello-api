@@ -8,8 +8,8 @@
  *
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
-//NOTE - must use `lemon-model` to publish w/o `lemon-core`.
-import { CoreModel } from 'lemon-model';
+//NOTE - v5: lemon-model comes through lemon-core (`CoreModel` is a root name; HOW_TO_UPGRADE_V5 § 16).
+import { CoreModel } from 'lemon-core';
 import { keys } from 'ts-transformer-keys';
 
 /**
