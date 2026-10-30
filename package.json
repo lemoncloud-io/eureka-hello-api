@@ -14,12 +14,9 @@
         "!start": "------ run in local development (note! ts-node seems not watch '.js' file) ----",
         "*start": "nodemon --watch src --exec ts-node --compiler typescript -r tsconfig-paths/register src/index.ts",
         "start": "npm run build && concurrently -k -p \"[{name}]\" -n \"TypeScript,Node\" -c \"cyan.bold,green.bold\" \"npm run watch-ts\" \"npm run nodemon\"",
-        "!server": "----- run serverless local (for dev) -----",
-        "server": "sls offline start --profile \"$ENV\" --stage local",
-        "server-local": "npm run build && concurrently -k -p \"[{name}]\" -n \"TypeScript,Node\" -c \"cyan.bold,green.bold\" \"npm run watch-ts\" \"npm run server\"",
-        "server.local": "ENV=none npm run server-local",
-        "!express": "---- run express server in local -----",
-        "express": "ENV=none STAGE=local npm run start",
+        "!express": "---- run express server in local (LOCAL_MODE=1: lemon-core local mode; express: SNS/SQS/protocol sends to this service are delivered in-process, express.aws: real AWS) -----",
+        "express": "ENV=none STAGE=local LOCAL_MODE=1 LOCAL_TRANSPORT=mock npm run start",
+        "express.aws": "ENV=none STAGE=local LOCAL_MODE=1 npm run start",
         "!deploy": "----- deploy to AWS by serverless -----",
         "deploy": "npm run build && sls deploy --param='profile=none' --stage dev",
         "deploy.prod": "npm run build && sls deploy --param='profile=none' --stage prod",
@@ -55,6 +52,11 @@
         "!remove": "----- sls remove by profile -----",
         "remove": "sls remove --param='profile=none' --stage dev",
         "remove.prod": "sls remove --param='profile=none' --stage prod",
+        "!lambda": "------- invoke the deployed lambda / watch its logs (bin/) -----",
+        "lambda:invoke": "node bin/lambda-invoke.mjs",
+        "lambda:logs": "node bin/lambda-logs.mjs",
+        "lambda:test": "node --test bin/lib/*.test.mjs",
+        "perf:lambda": "node bin/perf-lambda.mjs",
         "!test": "------- run self-test with jest -----",
         "test": "LS=1 jest --config=jest.config.json",
         "test:watch": "ENV=none LS=1 jest --config=jest.config.json --watchAll",
@@ -63,16 +65,23 @@
         "plato": "plato -r -d complexity dist"
     },
     "dependencies": {
-        "lemon-core": "^4.3.0"
+        "@aws-sdk/client-iam": "^3.1159.0",
+        "@aws-sdk/client-kms": "^3.1159.0",
+        "@aws-sdk/client-lambda": "^3.1159.0",
+        "@aws-sdk/client-s3": "^3.1159.0",
+        "@aws-sdk/client-sns": "^3.1159.0",
+        "@aws-sdk/client-sqs": "^3.1159.0",
+        "@aws-sdk/client-sts": "^3.1159.0",
+        "@aws-sdk/credential-providers": "^3.1159.0",
+        "lemon-core": "^5.0.11"
     },
     "devDependencies": {
+        "@aws-sdk/client-cloudwatch-logs": "^3.1159.0",
         "@cruglobal/serverless-merge-config": "^1.1.0",
         "@types/cors": "^2.8.7",
         "@types/jest": "^27.5.0",
         "@types/node": "^18.0.0",
-        "@types/request": "^2.48.5",
         "@types/supertest": "^2.0.10",
-        "@types/uuid": "^8.3.0",
         "@typescript-eslint/eslint-plugin": "^5.22.0",
         "@typescript-eslint/parser": "^5.22.0",
         "codecov": "^3.7.2",
@@ -81,13 +90,12 @@
         "eslint-config-prettier": "^8.5.0",
         "eslint-plugin-prettier": "^4.0.0",
         "jest": "^27.5.1",
-        "lemon-devkit": "^0.2.1",
+        "lemon-devkit": "^0.2.2",
         "lint-staged": "^13.1.0",
         "nodemon": "^2.0.20",
         "prettier": "^2.6.2",
         "serverless": "^3.19.0",
         "serverless-aws-documentation": "^0.8.0",
-        "serverless-offline": "^12.0.4",
         "serverless-plugin-log-retention": "^2.1.0",
         "serverless-prune-plugin": "^2.0.1",
         "superagent": "^5.3.1",
@@ -97,7 +105,6 @@
         "ts-transformer-keys": "^0.4.4",
         "tsconfig-paths": "^4.1.2",
         "ttypescript": "^1.5.15",
-        "typedoc": "^0.22.15",
         "typescript": "^4.7.4"
     },
     "private": false,
@@ -108,7 +115,7 @@
         "dist/**/*"
     ],
     "engines": {
-        "node": ">=22.15.1"
+        "node": ">=24.0.0"
     },
     "keywords": [
         "eureka.codes",

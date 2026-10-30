@@ -9,6 +9,8 @@
  * @copyright (C) lemoncloud.io 2024 - All Rights Reserved. (https://eureka.codes)
  */
 import { expect2, GETERR } from 'lemon-core';
+import https from 'https';
+import { EventEmitter } from 'events';
 
 //* import main models and service.
 import { asChaticContent, asChaticPayload } from './chatic-transformer';
@@ -325,6 +327,70 @@ describe('slack-service /w dummy', () => {
                 endpoint: 'http://example.com/slack2',
                 message: { channel: 'slack2', text: 'hi' },
             });
+        }
+    });
+
+    it('should pass postMessage() as one https POST w/o network', async () => {
+        const { service } = instance();
+        const calls: { target: any; body: string }[] = [];
+        //* normalize both call forms: `request(options, cb)` and `request(url, options, cb)`.
+        const asTarget = (a: any, b: any) => {
+            const u = typeof a === 'string' || a instanceof URL ? new URL(`${a}`) : null;
+            const o = u ? b : a;
+            const path = u ? `${u.pathname}${u.search}` : o?.path;
+            return { protocol: u ? u.protocol : o?.protocol, hostname: u ? u.hostname : o?.hostname, path, ...o };
+        };
+        //* fake `https.request()`: record the request, answer with `status` after `end()`.
+        const fakeRequest =
+            (status: number) =>
+            (...args: any[]) => {
+                const cb = args.find(a => typeof a === 'function');
+                const target = asTarget(args[0], args[1]);
+                const call = { target, body: '' };
+                calls.push(call);
+                return {
+                    write: (chunk: string) => (call.body += chunk),
+                    on: (): void => undefined,
+                    end: () => {
+                        const res: any = new EventEmitter();
+                        res.statusCode = status;
+                        res.statusMessage = status < 400 ? 'OK' : 'Bad Request';
+                        res.setEncoding = (): void => undefined;
+                        cb(res);
+                        res.emit('data', '{"ok":true}');
+                        res.emit('end');
+                    },
+                };
+            };
+        //* the real `postMessage` of `SlackService` (the instance one is a dummy).
+        const postMessage = new SlackService(service.$channel).postMessage;
+        const spy = jest.spyOn(https, 'request');
+        try {
+            spy.mockImplementation(fakeRequest(200) as any);
+            const res = await postMessage('https://hooks.example.com/services/T0/B0?x=1', { text: 'hi' });
+            expect2(() => res).toEqual({ body: '{"ok":true}', statusCode: 200, statusMessage: 'OK' });
+            expect2(() => calls[0].target, 'protocol,hostname,path,method').toEqual({
+                protocol: 'https:',
+                hostname: 'hooks.example.com',
+                path: '/services/T0/B0?x=1',
+                method: 'POST',
+            });
+            expect2(() => calls[0].target.headers).toEqual({
+                'Content-Type': 'application/json; charset=utf-8',
+                'Content-Length': 13,
+            });
+            expect2(() => calls[0].body).toEqual('{"text":"hi"}');
+
+            //* status >= 400 -> rejects with the same result shape.
+            spy.mockImplementation(fakeRequest(400) as any);
+            expect2(await postMessage('https://hooks.example.com/x', 'raw').catch(e => e)).toEqual({
+                body: '{"ok":true}',
+                statusCode: 400,
+                statusMessage: 'Bad Request',
+            });
+            expect2(() => calls[1].body).toEqual('raw');
+        } finally {
+            spy.mockRestore();
         }
     });
 });
