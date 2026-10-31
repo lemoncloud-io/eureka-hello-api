@@ -128,7 +128,7 @@ flowchart LR
 
 | 계정 | 명령 | 스테이지 |
 |---|---|---|
-| 기본(`profile=none`) | `deploy` / `deploy.prod`, `pack` / `pack.prod`, `info` / `info.prod`, `logs` / `logs.prod`, `remove` / `remove.prod` | dev / prod. dev는 이관됐다: `deploy`·`remove`(dev)는 쓰지 않는다([docs/serverless.md](docs/serverless.md)). |
+| 기본(`profile=none`) | `deploy` / `deploy.prod`, `pack` / `pack.prod`, `info` / `info.prod`, `logs` / `logs.prod`, `remove` / `remove.prod` | dev / prod. dev는 이관됐다: `deploy`·`remove`(dev)는 가드가 막는다([docs/serverless.md](docs/serverless.md)). |
 | `ssocio` | `deploy.ssocio`, `pack.ssocio`, `info.ssocio`, `logs.ssocio`, `remove.ssocio` | prod |
 | `muzly` | `deploy.muzly` / `deploy.muzly.prod`, `pack.muzly`, `info.muzly`, `logs.muzly`, `remove.muzly` | dev / prod |
 | `epyt` | `deploy.epyt` / `deploy.epyt.prod`, `pack.epyt`, `info.epyt`, `logs.epyt`, `remove.epyt` | dev / prod. `pack`·`info`·`logs`·`remove`는 prod다. |

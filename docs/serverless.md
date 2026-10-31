@@ -4,7 +4,7 @@ lemon-hello-api는 2026-10-31에 Serverless Framework 패키지와 `sls` 스크�
 다른 배포 프로필(`ssocio`·`muzly`·`epyt`)과 기본 프로필의 prod가 아직 `sls`로 배포하기 때문이다. 이 스택들은 lemon-core의 검토된 이관 대상이 아니다.
 
 -   `serverless`, 플러그인 3개(`serverless-aws-documentation`·`serverless-plugin-log-retention`·`serverless-prune-plugin`), `@cruglobal/serverless-merge-config`를 `devDependencies`에 남긴다.
--   `sls`를 부르는 스크립트(`deploy*`·`pack*`·`info*`·`logs*`·`remove*`)를 모두 남긴다. `serverless.yml`도 그대로다.
+-   `sls`를 부르는 스크립트(`deploy*`·`pack*`·`info*`·`logs*`·`remove*`)를 남긴다. 단 기본 프로필 dev의 `deploy`·`remove`는 막았다(아래). `serverless.yml`은 그대로다.
 -   호출·로그·성능 점검·pack·배포 계획·dev 이관은 lemon-core의 `lemon-*` 명령이 맡는다([lambda-tools.md](lambda-tools.md)).
 
 ## 스테이지별 배포 경로
@@ -22,13 +22,15 @@ lemon-hello-api는 2026-10-31에 Serverless Framework 패키지와 `sls` 스크�
 
 ## 이관된 dev(기본 프로필)에는 쓰지 않는 스크립트
 
-| 스크립트 | 이유                                                                                | 대신                            |
-| -------- | ----------------------------------------------------------------------------------- | ------------------------------- |
-| `deploy` | 새 Serverless 스택을 만들려 한다. 배포 서비스가 관리하는 함수·자원과 이름이 겹친다. | `lambda:pack` → `lambda:deploy` |
-| `remove` | 지울 Serverless 스택이 없다.                                                        | 없음                            |
-| `info`   | `sls info`가 볼 Serverless 스택이 없다.                                             | `lambda:invoke -- --path /`     |
-| `logs`   | 함수 로그는 그대로지만 `lemon-*` 도구가 표준이다.                                   | `lambda:logs`                   |
-| `pack`   | `sls package`는 배포하지 않는다. 이관된 dev의 ZIP은 `lambda:pack`이 만든다.         | `lambda:pack`                   |
+`deploy`·`remove`(기본 프로필, dev)는 `scripts/migrated-stage-guard.mjs`를 부른다. 이 가드는 이유와 대신 쓸 명령을 알리고 실패로 끝난다(2026-11-01부터). 셸 자격 증명이 다른 계정을 가리켜도 막는다. 그 계정의 dev가 이관되지 않았음을 확인했고 꼭 sls로 배포해야 한다면, `npx sls deploy --param='profile=none' --stage dev`를 직접 부른다.
+
+| 스크립트 | 이유                                                                                      | 대신                            |
+| -------- | ----------------------------------------------------------------------------------------- | ------------------------------- |
+| `deploy` | 막음. 새 Serverless 스택을 만들려 한다. 배포 서비스가 관리하는 함수·자원과 이름이 겹친다. | `lambda:pack` → `lambda:deploy` |
+| `remove` | 막음. 지울 Serverless 스택이 없다.                                                        | 없음                            |
+| `info`   | `sls info`가 볼 Serverless 스택이 없다.                                                   | `lambda:invoke -- --path /`     |
+| `logs`   | 함수 로그는 그대로지만 `lemon-*` 도구가 표준이다.                                         | `lambda:logs`                   |
+| `pack`   | `sls package`는 배포하지 않는다. 이관된 dev의 ZIP은 `lambda:pack`이 만든다.               | `lambda:pack`                   |
 
 ## npm audit
 
