@@ -9,13 +9,13 @@ lemon-hello-api는 2026-10-31에 Serverless Framework 패키지와 `sls` 스크�
 
 ## 스테이지별 배포 경로
 
-| 프로필               | 스테이지  | 소유                         | 배포                                                                             |
-| -------------------- | --------- | ---------------------------- | -------------------------------------------------------------------------------- |
-| 기본(`profile=none`) | dev       | 배포 서비스(2026-11-01 이관) | `lambda:deploy` `code` 모드. lemon-core #266 게시 뒤 `lambda:deploy:dev`도 된다. |
-| 기본(`profile=none`) | prod      | Serverless                   | `deploy.prod`                                                                    |
-| `ssocio`             | prod      | Serverless                   | `deploy.ssocio`                                                                  |
-| `muzly`              | dev, prod | Serverless                   | `deploy.muzly`, `deploy.muzly.prod`                                              |
-| `epyt`               | dev, prod | Serverless                   | `deploy.epyt`, `deploy.epyt.prod`                                                |
+| 프로필               | 스테이지  | 소유                         | 배포                                                                         |
+| -------------------- | --------- | ---------------------------- | ---------------------------------------------------------------------------- |
+| 기본(`profile=none`) | dev       | 배포 서비스(2026-11-01 이관) | `lambda:deploy` `code` 모드 또는 `lambda:deploy:dev`(lemon-core 5.0.19부터). |
+| 기본(`profile=none`) | prod      | Serverless                   | `deploy.prod`                                                                |
+| `ssocio`             | prod      | Serverless                   | `deploy.ssocio`                                                              |
+| `muzly`              | dev, prod | Serverless                   | `deploy.muzly`, `deploy.muzly.prod`                                          |
+| `epyt`               | dev, prod | Serverless                   | `deploy.epyt`, `deploy.epyt.prod`                                            |
 
 -   모든 계정에서 스택 이름은 `eureka-hello-api-<stage>`다. 계정은 `--aws-profile`(또는 셸 자격 증명)이 정한다.
 -   `deploy`·`remove`는 사람만 실행한다. prod는 특히 그렇다.
