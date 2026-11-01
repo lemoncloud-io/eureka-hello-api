@@ -19,9 +19,8 @@ The lemon-hello-api `docs/lambda-migrate.md` is the longer worked example of the
 
 ## lemon-core version
 
--   lemon-core 5.0.18 does not list eureka-hello-api / dev / `eureka-hello-api-dev` as a reviewed target. lemon-core PR #266 adds it.
--   Until that release, `lambda:migrate` and `lambda:deploy:dev` stop with `TARGET_MISMATCH` (exit 2) for this service.
--   `lambda:deploy` in `code` mode does not use the target list. It is the dev code path now ([lambda-tools.md](lambda-tools.md#pack-and-offline-deploy-plan)).
+-   Since lemon-core 5.0.19 (PR #266), eureka-hello-api / dev / `eureka-hello-api-dev` is a reviewed migration target, so `lambda:migrate` and `lambda:deploy:dev` accept this service. On 5.0.18 they stopped with `TARGET_MISMATCH` (exit 2).
+-   `lambda:deploy` in `code` mode does not use the target list. It also works for the dev code path ([lambda-tools.md](lambda-tools.md#pack-and-offline-deploy-plan)).
 
 ## Prepare (for later runs)
 
@@ -65,9 +64,9 @@ The owner authorized the dev migration directly on dev, without a rehearsal. It 
 ```sh
 # verified ZIP into a new directory (Docker, no AWS)
 npm run lambda:pack -- --output .artifacts/lambda/release-candidate
-# now (lemon-core 5.0.18): offline plan of a code-mode deploy
+# offline plan of a code-mode deploy
 npm run lambda:deploy -- --config .artifacts/deploy.code.json --artifact .artifacts/lambda/release-candidate
-# after the lemon-core release with #266: offline plan of the guarded dev deploy
+# offline plan of the guarded dev deploy (lemon-core 5.0.19+; add --migration-receipt <run receipt> to gate on the completed migration)
 npm run lambda:deploy:dev -- --config .artifacts/deploy.dev.json --artifact .artifacts/lambda/release-candidate
 ```
 

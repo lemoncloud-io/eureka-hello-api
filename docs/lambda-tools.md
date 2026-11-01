@@ -31,10 +31,10 @@ The default profile's dev stack `eureka-hello-api-dev` moved to the deploy servi
 
 ## lemon-core version and the reviewed target
 
-lemon-core 5.0.18 does not list eureka-hello-api / dev as a reviewed migration target. Its `bin/lib/org-defaults.mjs` `migration.targets` has lemon-templates-api and lemon-hello-api only. lemon-core PR #266 adds eureka-hello-api.
+Since lemon-core 5.0.19 (PR #266), its `bin/lib/org-defaults.mjs` `migration.targets` lists eureka-hello-api / dev next to lemon-templates-api and lemon-hello-api.
 
--   `lambda:migrate` and `lambda:deploy:dev` stop with `TARGET_MISMATCH` (exit 2) for this service on 5.0.18. They need the lemon-core release after #266.
--   `lambda:pack` and `lambda:deploy` (`code` mode) do not use the target list. They work with 5.0.18.
+-   `lambda:migrate` and `lambda:deploy:dev` accept this service on 5.0.19 and later. On 5.0.18 they stopped with `TARGET_MISMATCH` (exit 2).
+-   `lambda:pack` and `lambda:deploy` (`code` mode) do not use the target list. They work on any 5.0.18+ release.
 
 ## What the tools read in this repository
 
@@ -123,7 +123,7 @@ npm run lambda:deploy -- --config .artifacts/deploy.code.json --artifact .artifa
 
 In `code` mode the preflight needs both functions to exist **and** to be managed by the deploy service.
 
--   Default profile, dev: migrated on 2026-11-01. `lambda:deploy -- ... --apply` works now. `lambda:deploy:dev` needs the lemon-core release after #266. `--apply` is human only.
+-   Default profile, dev: migrated on 2026-11-01. `lambda:deploy -- ... --apply` works now. `lambda:deploy:dev` works too (5.0.19+). `--apply` is human only.
 -   Every other profile and stage: still a Serverless stack. Do not pass `--apply`; deploy with its `sls` script ([serverless.md](serverless.md)).
 
 ## Examples
