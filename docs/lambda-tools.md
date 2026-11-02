@@ -25,6 +25,7 @@ This page keeps only what is specific to this service. The tests of the tools ar
 | `lambda:deploy`     | `lemon-lambda-deploy`     | Verify a pack output and print the offline deploy plan. No AWS access.                             |
 | `lambda:migrate`    | `lemon-lambda-migrate`    | Move the dev Serverless stack to the deploy service, one phase at a time. Offline plan by default. |
 | `lambda:deploy:dev` | `lemon-lambda-deploy-dev` | Dev-only `code` deploy of a pack to the migrated dev functions. Offline plan by default.           |
+| `deploy:dev`        | `bin/deploy-dev.sh`       | Manual dev deploy: pack → plan → `--apply` → probe, in one command. Human-run only ([Manual dev deploy](#manual-dev-deploy-bindeploy-devsh)). |
 
 The Serverless Framework stays installed here, with every `sls` script: the other profiles deploy with it ([serverless.md](serverless.md)).
 The default profile's dev stack `eureka-hello-api-dev` moved to the deploy service on 2026-11-01 ([lambda-migrate.md](lambda-migrate.md)). Its code goes through the deploy service now, not `sls deploy`.
@@ -35,6 +36,27 @@ Since lemon-core 5.0.19 (PR #266), its `bin/lib/org-defaults.mjs` `migration.tar
 
 -   `lambda:migrate` and `lambda:deploy:dev` accept this service on 5.0.19 and later. On 5.0.18 they stopped with `TARGET_MISMATCH` (exit 2).
 -   `lambda:pack` and `lambda:deploy` (`code` mode) do not use the target list. They work on any 5.0.18+ release.
+
+### Manual dev deploy (`bin/deploy-dev.sh`)
+
+`npm run deploy:dev` is the one-command path for a human to ship the current checkout to the `lemon` dev stage. It wraps the same tools as the rows above and runs them in the lane order — nothing in it is new deploy logic.
+
+1. Preflight: `package.json` + `pack.config.json` present, stage `dev` only (prod stays a Serverless stack, see [serverless.md](serverless.md)), Node ≥ 24, `jq`, `aws`, `docker`, lemon-core bins installed, config in **code mode** with matching `stage` / `profile` / `project` (`project` = `package.json` `name`), `aws sts get-caller-identity` (account redacted).
+2. Pack: `npm run lambda:pack -- --output .artifacts/lambda/dev-<time>-<sha>` (Docker). `--skip-pack --artifact <dir>` reuses an existing pack.
+3. Offline plan: `lambda:deploy --config … --artifact …` → `<artifact>/plan.dev.json`, summary printed with account / endpoint redacted. `--plan-only` stops here.
+4. Apply: a **separate** `lambda:deploy … --apply --receipt-dir .artifacts/deploy/receipts` command; the run must end `completed`. No prompt by default — `--ask` inserts a confirm step.
+5. Probe: `lambda:invoke --path /` and `/hello/0`.
+
+Config: `.artifacts/deploy.code.dev.json` (git-ignored). When it is missing the script fills it once — copies `deploy.code.dev.json` from the private lane folder `../.wt/v5-private/<service>/` next to the main checkout (override with `DEPLOY_PRIVATE_DIR`), else reduces that folder's `deploy.dev.json` to code mode with `jq`, else writes the example and stops so the real values can be filled in. The file holds account / endpoint / bucket values and is never committed.
+
+Difference from `lambda:deploy:dev`: that bin is lemon-core's guarded registry release (target pinned in lemon-core). `deploy:dev` is this repository's own wrapper around pack + plan + apply + probe and reads the local config instead.
+
+```bash
+npm run deploy:dev                                   # pack → plan → apply → probe
+npm run deploy:dev -- --plan-only                    # pack + plan, no AWS change
+npm run deploy:dev -- --skip-pack --artifact .artifacts/lambda/dev-20261103-1200-abc1234
+npm run deploy:dev -- --ask                          # confirm before --apply
+```
 
 ## What the tools read in this repository
 

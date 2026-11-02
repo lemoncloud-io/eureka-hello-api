@@ -12,7 +12,7 @@ lemon-core 서비스는 처리하지 않은 예외를 SNS로 보낸다. 이 서�
 | 런타임 | Node `24.15.0` (`.nvmrc`), `engines.node` `>=24.0.0`. pack은 `nodejs24.x`(`pack.config.json`)를 만든다. Serverless 스택의 런타임은 `serverless.yml` `provider.runtime`(env 설정)이다. |
 | 언어·빌드 | TypeScript `^4.7.4`, `ttsc`(ttypescript)로 `src/` → `dist/`. `ts-transformer-keys` 변환기가 모델 필드 목록을 만든다. |
 | 테스트 | jest `^29.7.0` + ts-jest `^29.4.15` (`src/**/*.spec.ts`). ts-jest도 `ttypescript`로 컴파일한다(`keys<T>()` 변환기). Lambda 도구(`lemon-*`)의 테스트는 lemon-core에 있다. |
-| 프레임워크 | `lemon-core` `^5.0.19`. lemon-model은 lemon-core를 통해 온다. 루트 이름은 `lemon-core`, 그 밖의 이름은 `lemon-core/model`에서 가져온다. 이 서비스는 `lemon-model`을 직접 선언하지 않는다. 로컬 서버는 lemon-core `buildExpress()`의 로컬 API Gateway가 만든다(`src/express.ts`) — `serverless.yml` 라우트를 그대로 따르고, 없는 경로·메서드는 `403`이다. 앞단의 작은 내장 앱이 로컬 확장 라우트(`POST /echo`)를 받는다. `express`·`lemon-devkit`은 쓰지 않는다(HOW_TO_UPGRADE_V5 § 20). |
+| 프레임워크 | `lemon-core` `^5.0.23`. lemon-model은 lemon-core를 통해 온다. 루트 이름은 `lemon-core`, 그 밖의 이름은 `lemon-core/model`에서 가져온다. 이 서비스는 `lemon-model`을 직접 선언하지 않는다. 로컬 서버는 lemon-core `buildExpress()`의 로컬 API Gateway가 만든다(`src/express.ts`) — `serverless.yml` 라우트를 그대로 따르고, 없는 경로·메서드는 `403`이다. 앞단의 작은 내장 앱이 로컬 확장 라우트(`POST /echo`)를 받는다. `express`·`lemon-devkit`은 쓰지 않는다(HOW_TO_UPGRADE_V5 § 20). |
 | AWS SDK | v3 (`@aws-sdk/*` `^3.1159.0`). lemon-core v5의 선택 peer 8개를 `dependencies`에 둔다. DynamoDB 클라이언트는 lemon-core에 들어 있다. |
 | 배포 | Serverless Framework v3 (`frameworkVersion: "3"`) → AWS Lambda. 계정마다 배포한다(기본, `ssocio`, `muzly`, `epyt`). 기본 프로필의 dev 스택만 2026-11-01 배포 서비스로 이관했다: 코드는 `lambda:deploy`(`code` 모드)로 보낸다([docs/lambda-migrate.md](docs/lambda-migrate.md)). 나머지는 `sls` 그대로다([docs/serverless.md](docs/serverless.md)). |
 | 브랜치 | 기본 브랜치 `develop`. v5 라인은 `v5` 브랜치에 있다. |
@@ -136,6 +136,7 @@ flowchart LR
 | `npm run lambda:deploy -- --config <파일> --artifact <pack 출력>` | pack 출력 검증 + 오프라인 배포 계획(`lemon-lambda-deploy`, `code` 모드) | AWS 불필요. `bootstrap` 모드는 쓰지 않는다 |
 | `npm run lambda:migrate -- <단계> --config <파일>` | dev Serverless 스택 이관(`lemon-lambda-migrate`). 기본은 오프라인 계획 | lemon-core 5.0.19부터(검토된 대상). [docs/lambda-migrate.md](docs/lambda-migrate.md) |
 | `npm run lambda:deploy:dev -- --config <파일> --artifact <pack 출력>` | 이관된 dev 함수 2개에 코드만 배포(`lemon-lambda-deploy-dev`). 기본은 오프라인 계획 | lemon-core 5.0.19부터(검토된 대상). [docs/lambda-migrate.md](docs/lambda-migrate.md) |
+| `npm run deploy:dev` | 수동 dev 배포 한 명령(`bin/deploy-dev.sh`): pack → 계획 → `--apply` → GET `/`·`/hello/0` 확인. 설정 `.artifacts/deploy.code.dev.json`이 없으면 비공개 레인 폴더에서 한 번 만든다. `--plan-only`면 계획까지만 | 사람만 실행. 기본 `profile=lemon`(`--profile`로 바꾼다, 설정의 `profile`과 같아야 한다). [docs/lambda-tools.md](docs/lambda-tools.md#manual-dev-deploy-bindeploy-devsh) |
 
 **사람만 실행** — 에이전트는 사람이 명시적으로 시킬 때만 돌린다.
 
@@ -145,7 +146,7 @@ flowchart LR
 | `ssocio` | `deploy.ssocio`, `pack.ssocio`, `info.ssocio`, `logs.ssocio`, `remove.ssocio` | prod |
 | `muzly` | `deploy.muzly` / `deploy.muzly.prod`, `pack.muzly`, `info.muzly`, `logs.muzly`, `remove.muzly` | dev / prod |
 | `epyt` | `deploy.epyt` / `deploy.epyt.prod`, `pack.epyt`, `info.epyt`, `logs.epyt`, `remove.epyt` | dev / prod. `pack`·`info`·`logs`·`remove`는 prod다. |
-| 배포 서비스(기본 프로필 dev) | `lambda:deploy -- ... --apply`, `lambda:deploy:dev -- ... --apply`, `lambda:migrate -- <단계> ... --execute` | dev |
+| 배포 서비스(기본 프로필 dev) | `deploy:dev`, `lambda:deploy -- ... --apply`, `lambda:deploy:dev -- ... --apply`, `lambda:migrate -- <단계> ... --execute` | dev |
 
 - `ssocio`·`muzly`·`epyt` 명령은 `--aws-profile`을 명시한다. 다른 계정으로 잘못 가지 않게 하려는 것이다.
 - 2026-10-30 보안 변경은 `CHANNEL_ENDPOINT_HOSTS` 없이 배포해도 chatic 발송을 멈추지 않는다. 목록 밖 호스트는 경고 로그만 남긴다.
@@ -217,6 +218,6 @@ npm run perf:lambda -- --stage dev --profile <name> --runs 5            # cold/w
 
 | Version   | Description
 |--         |--
-| (v5)      | migrated to `lemon-core@^5.0.19` and Node 24 (`v5` branch). local mode by `LOCAL_MODE=1`, local API Gateway and Lambda tools (`lemon-*`) from lemon-core. Serverless Framework kept for the other profiles; the default profile's dev moved to the deploy service (2026-11-01).
+| (v5)      | migrated to `lemon-core@^5.0.23` and Node 24 (`v5` branch). local mode by `LOCAL_MODE=1`, local API Gateway and Lambda tools (`lemon-*`) from lemon-core. Serverless Framework kept for the other profiles; the default profile's dev moved to the deploy service (2026-11-01).
 | 0.24.511  | optimized with `lemon-core#3.2.15`.
 | 0.24.1127 | initial version with `lemon-core#3.2.10`.
