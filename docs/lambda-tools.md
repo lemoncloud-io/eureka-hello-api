@@ -1,0 +1,174 @@
+# Lambda tools (`lemon-*` commands of lemon-core)
+
+Since lemon-core 5.0.13 (v5 B19) the Lambda tools that were copied into this repository's `bin/` ship with lemon-core as npm bins.
+This service runs them through the same `npm run` scripts, so the commands are unchanged.
+`npm run <script> -- --help` prints the usage of each tool.
+
+Options, output, credentials, safety rules (strict options, stage guard, identity line, redaction, size cap) and exit codes are documented once, in lemon-core (`v5` branch):
+
+-   `HOW_TO_UPGRADE_V5.md` § 19 — script mapping and optional peers.
+-   `HOW_TO_DEPLOY_V5.md` — the deployment track (in preparation).
+-   `docs/v5/B19-bin-tools.md` — `lemon-lambda-invoke`, `lemon-lambda-logs`, `lemon-lambda-perf`.
+-   `docs/v5/B19-bin-deploy.md` — `lemon-lambda-pack`, `lemon-lambda-deploy`, `lemon-lambda-migrate`, `lemon-lambda-deploy-dev`.
+-   `docs/v5/B24-migration-targets.md` — the reviewed migration targets.
+
+This page keeps only what is specific to this service. The tests of the tools are in lemon-core (`npm test` there); this repository has no `lambda:test` script any more.
+
+## Scripts
+
+| Script              | lemon-core bin            | Does                                                                                                                                          |
+| ------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lambda:invoke`     | `lemon-lambda-invoke`     | Invoke the deployed function with a generated event (web, cron, SNS, SQS, raw).                                                               |
+| `lambda:logs`       | `lemon-lambda-logs`       | Print or follow the function's CloudWatch logs.                                                                                               |
+| `perf:lambda`       | `lemon-lambda-perf`       | Invoke several times and summarize cold / warm timings.                                                                                       |
+| `lambda:pack`       | `lemon-lambda-pack`       | Build a verified Lambda ZIP in Docker into `.artifacts/lambda/`. No AWS access.                                                               |
+| `lambda:deploy`     | `lemon-lambda-deploy`     | Verify a pack output and print the offline deploy plan. No AWS access.                                                                        |
+| `lambda:migrate`    | `lemon-lambda-migrate`    | Move the dev Serverless stack to the deploy service, one phase at a time. Offline plan by default.                                            |
+| `lambda:deploy:dev` | `lemon-lambda-deploy-dev` | Dev-only `code` deploy of a pack to the migrated dev functions. Offline plan by default.                                                      |
+| `deploy:dev`        | `bin/deploy-dev.sh`       | Manual dev deploy: pack → plan → `--apply` → probe, in one command. Human-run only ([Manual dev deploy](#manual-dev-deploy-bindeploy-devsh)). |
+
+The Serverless Framework is not installed here and no script calls `sls` (removed 2026-11-03, [serverless.md](serverless.md)).
+The default profile's dev stack `eureka-hello-api-dev` moved to the deploy service on 2026-11-01 ([lambda-migrate.md](lambda-migrate.md)). Its code goes through the deploy service now.
+The default profile's prod and the `ssocio` / `muzly` / `epyt` stacks are still Serverless stacks, pending migration. They have no npm deploy script; [serverless.md](serverless.md) records the `npx serverless` command per profile and stage (human only).
+
+## lemon-core version and the reviewed target
+
+Since lemon-core 5.0.19 (PR #266), its `bin/lib/org-defaults.mjs` `migration.targets` lists eureka-hello-api / dev next to lemon-templates-api and lemon-hello-api.
+
+-   `lambda:migrate` and `lambda:deploy:dev` accept this service on 5.0.19 and later. On 5.0.18 they stopped with `TARGET_MISMATCH` (exit 2).
+-   `lambda:pack` and `lambda:deploy` (`code` mode) do not use the target list. They work on any 5.0.18+ release.
+
+### Manual dev deploy (`bin/deploy-dev.sh`)
+
+`npm run deploy:dev` is the one-command path for a human to ship the current checkout to the `lemon` dev stage. It wraps the same tools as the rows above and runs them in the lane order — nothing in it is new deploy logic.
+
+1. Preflight: `package.json` + `pack.config.json` present, stage `dev` only (prod stays a Serverless stack, see [serverless.md](serverless.md)), Node ≥ 24, `jq`, `aws`, `docker`, lemon-core bins installed, config in **code mode** with matching `stage` / `profile` / `project` (`project` = `package.json` `name`), `aws sts get-caller-identity` (account redacted).
+2. Pack: `npm run lambda:pack -- --output .artifacts/lambda/dev-<time>-<sha>` (Docker). `--skip-pack --artifact <dir>` reuses an existing pack.
+3. Offline plan: `lambda:deploy --config … --artifact …` → `<artifact>/plan.dev.json`, summary printed with account / endpoint redacted. `--plan-only` stops here.
+4. Apply: a **separate** `lambda:deploy … --apply --receipt-dir .artifacts/deploy/receipts` command; the run must end `completed`. No prompt by default — `--ask` inserts a confirm step.
+5. Probe: `lambda:invoke --path /` and `/hello/0`.
+
+Config: `.artifacts/deploy.code.dev.json` (git-ignored). When it is missing the script fills it once — copies `deploy.code.dev.json` from the private lane folder `../.wt/v5-private/<service>/` next to the main checkout (override with `DEPLOY_PRIVATE_DIR`), else reduces that folder's `deploy.dev.json` to code mode with `jq`, else writes the example and stops so the real values can be filled in. The file holds account / endpoint / bucket values and is never committed.
+
+Difference from `lambda:deploy:dev`: that bin is lemon-core's guarded registry release (target pinned in lemon-core). `deploy:dev` is this repository's own wrapper around pack + plan + apply + probe and reads the local config instead.
+
+```bash
+npm run deploy:dev                                   # pack → plan → apply → probe
+npm run deploy:dev -- --plan-only                    # pack + plan, no AWS change
+npm run deploy:dev -- --skip-pack --artifact .artifacts/lambda/dev-20261103-1200-abc1234
+npm run deploy:dev -- --ask                          # confirm before --apply
+```
+
+## What the tools read in this repository
+
+The tools run from the service root (`process.cwd()`; npm runs a script from the package root). They also take `--cwd <dir>`.
+
+-   `serverless.yml`: only the top-level `service:` line (`eureka-hello-api`). The function name is `<service>-<stage>-<fn>` and the log group `/aws/lambda/<name>`.
+-   `lambda:migrate` and `lambda:deploy:dev` read only their `--config` file (and the pack output). The migration reads the live stack, not `serverless.yml`.
+
+Nothing reads `env/*.yml`, `env/config.js`, or the `custom:` / `environment:` blocks of `serverless.yml`.
+The local server (lemon-core `buildExpress()`, not a `lemon-*` tool) reads the `http` events of `serverless.yml` for its routes.
+
+lemon-core is a runtime dependency, so its `bin/` files are part of `node_modules/lemon-core` in the deployed package. They are never loaded by `handler.js`.
+
+## Functions
+
+| `--fn`             | Events                                                    |
+| ------------------ | --------------------------------------------------------- |
+| `lambda` (default) | API Gateway (`http` events of `serverless.yml`)           |
+| `backend`          | SNS (error reports, slack messages), SQS, DynamoDB stream |
+
+## Accounts and stages
+
+The function names are `eureka-hello-api-<stage>-<fn>` in every account. Without `--profile`, the shell's AWS credentials pick the account.
+Pick the account with `--profile <name>` and check the identity line (account last 4 digits) before you read anything.
+A `prod` target needs `--stage prod --confirm-stage prod`, and only on an explicit human instruction.
+
+| Deploy profile (`--param`) | Stages    | Deploy path                                                                                                                                                              |
+| -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| default (`profile=none`)   | dev, prod | dev: deploy service since 2026-11-01 (`lambda:deploy` `code` mode, `lambda:deploy:dev`, `deploy:dev`). prod: pending migration, no npm script (`npx serverless` record). |
+| `ssocio`                   | prod      | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
+| `muzly`                    | dev, prod | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
+| `epyt`                     | dev, prod | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
+
+The migration and dev deploy configs carry their own `account` and `profile`; the wrapper checks the account with STS before it runs a phase.
+
+## AWS SDK packages
+
+The AWS SDK packages are optional peers of lemon-core. `--help` and `--dry` need none of them; a call that needs a missing one stops with an `npm i -D <package>` hint.
+
+| Package                           | Declared here in  | Needed by                           |
+| --------------------------------- | ----------------- | ----------------------------------- |
+| `@aws-sdk/client-lambda`          | `dependencies`    | `lambda:invoke`, `perf:lambda`      |
+| `@aws-sdk/client-sts`             | `dependencies`    | the identity line                   |
+| `@aws-sdk/credential-providers`   | `dependencies`    | `--profile <name>`                  |
+| `@aws-sdk/client-cloudwatch-logs` | `devDependencies` | `lambda:logs`, `perf:lambda --logs` |
+
+## Pack and offline deploy plan
+
+The two tools prepare a deploy through the deploy service. Without `--apply` they deploy nothing.
+
+| File                             | Committed | Does                                                                                               |
+| -------------------------------- | --------- | -------------------------------------------------------------------------------------------------- |
+| `pack.config.json`               | yes       | Pack adapter: source allowlist, runtime paths (`handler.js`, `dist`, `data`), `handler.lambda`.    |
+| `deploy.config.example.json`     | yes       | `code` mode example. Every value is a placeholder.                                                 |
+| `deploy.dev.config.example.json` | yes       | `lambda:deploy:dev` example (`code`, dev, with `profile`). Every value is a placeholder.           |
+| `migration.config.example.json`  | yes       | `lambda:migrate` example (eureka-hello dev target, pinned revision). Every value is a placeholder. |
+| `.artifacts/`                    | no        | Pack outputs and real deploy configs. Git-ignored.                                                 |
+
+### Pack
+
+```sh
+npm run lambda:pack                     # new directory under .artifacts/lambda/
+npm run lambda:pack -- --output .artifacts/lambda/release-candidate
+```
+
+-   Needs Node 24, Git and Docker. Needs no AWS credentials. Uploads nothing.
+-   It builds from a source snapshot in the Lambda image (`npm ci`, `npm run build`, production install). Host `node_modules` and `dist` are not used.
+-   The output directory has `lambda.zip` and `manifest.json`. Check `unzip -t` and the manifest `validation` block before you use the ZIP.
+-   The dev-only stand-in `scripts/deepmerge-safe/` is a local link in `package-lock.json`. Since lemon-core 5.0.16 the pack accepts such an in-repository, dev-only link and keeps it out of the ZIP.
+-   The Serverless packages are not installed (removed 2026-11-03), so nothing of them can reach the ZIP.
+
+### Offline deploy plan
+
+```sh
+mkdir -p .artifacts
+cp deploy.config.example.json .artifacts/deploy.code.json
+# replace the placeholders in .artifacts/deploy.code.json (account, region, endpoint, artifactBucket); add "profile" there if needed
+npm run lambda:deploy -- --config .artifacts/deploy.code.json --artifact .artifacts/lambda/release-candidate
+```
+
+-   Without `--apply` it verifies the manifest, the ZIP hash and the file list, and prints the plan JSON. It reads no credentials and calls no network. Exit 0 = plan printed. Exit 2 = invalid local input.
+-   `code` mode only: it updates the code of the two existing functions `lambda` and `backend`. It does not change environment, runtime, handler, memory, timeout, IAM, routes or event wiring.
+-   Do not use `bootstrap` mode for this service. Bootstrap converges its own table, queue, topic and routes with template defaults. It does not know this service's table, www bucket or bucket policy. It would create new resources next to the existing ones and split the data between two tables.
+
+### `--apply` only on a migrated stage
+
+In `code` mode the preflight needs both functions to exist **and** to be managed by the deploy service.
+
+-   Default profile, dev: migrated on 2026-11-01. `lambda:deploy -- ... --apply` works now. `lambda:deploy:dev` works too (5.0.19+). `--apply` is human only.
+-   Every other profile and stage: still a Serverless stack, pending migration. Do not pass `--apply`; a human deploys it with the `npx serverless` record ([serverless.md](serverless.md)).
+
+## Examples
+
+```sh
+# web GET /hello/0 with the log tail
+npm run lambda:invoke -- --stage dev --profile <name> --path /hello/0 --tail
+
+# internal web call (no Host header, like a direct invoke); the channel view stays masked (unmasked only in local mode)
+npm run lambda:invoke -- --stage dev --internal --path /hello/public/channel
+
+# SNS error report into the backend function (the same path as a lemon-core `doReportError()`); this sends to the real channels
+npm run lambda:invoke -- --stage dev --profile <name> --fn backend --event sns --subject error --body @sample/error-1.json --dry
+
+# SNS slack message into the backend function
+npm run lambda:invoke -- --stage dev --profile <name> --fn backend --event sns --subject slack --body @sample/slack-1.json --dry
+
+# follow the backend logs (SNS notifications)
+npm run lambda:logs -- --stage dev --profile <name> --fn backend --follow
+
+# 5 runs of GET /hello/0 on dev, with the full CloudWatch log of each run
+npm run perf:lambda -- --stage dev --profile <name> --logs
+```
+
+`--raw` turns off the redaction of accounts, ARNs and tokens: do not use it in shared logs.
