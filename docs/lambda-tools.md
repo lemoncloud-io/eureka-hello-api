@@ -16,19 +16,20 @@ This page keeps only what is specific to this service. The tests of the tools ar
 
 ## Scripts
 
-| Script              | lemon-core bin            | Does                                                                                               |
-| ------------------- | ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `lambda:invoke`     | `lemon-lambda-invoke`     | Invoke the deployed function with a generated event (web, cron, SNS, SQS, raw).                    |
-| `lambda:logs`       | `lemon-lambda-logs`       | Print or follow the function's CloudWatch logs.                                                    |
-| `perf:lambda`       | `lemon-lambda-perf`       | Invoke several times and summarize cold / warm timings.                                            |
-| `lambda:pack`       | `lemon-lambda-pack`       | Build a verified Lambda ZIP in Docker into `.artifacts/lambda/`. No AWS access.                    |
-| `lambda:deploy`     | `lemon-lambda-deploy`     | Verify a pack output and print the offline deploy plan. No AWS access.                             |
-| `lambda:migrate`    | `lemon-lambda-migrate`    | Move the dev Serverless stack to the deploy service, one phase at a time. Offline plan by default. |
-| `lambda:deploy:dev` | `lemon-lambda-deploy-dev` | Dev-only `code` deploy of a pack to the migrated dev functions. Offline plan by default.           |
+| Script              | lemon-core bin            | Does                                                                                                                                          |
+| ------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lambda:invoke`     | `lemon-lambda-invoke`     | Invoke the deployed function with a generated event (web, cron, SNS, SQS, raw).                                                               |
+| `lambda:logs`       | `lemon-lambda-logs`       | Print or follow the function's CloudWatch logs.                                                                                               |
+| `perf:lambda`       | `lemon-lambda-perf`       | Invoke several times and summarize cold / warm timings.                                                                                       |
+| `lambda:pack`       | `lemon-lambda-pack`       | Build a verified Lambda ZIP in Docker into `.artifacts/lambda/`. No AWS access.                                                               |
+| `lambda:deploy`     | `lemon-lambda-deploy`     | Verify a pack output and print the offline deploy plan. No AWS access.                                                                        |
+| `lambda:migrate`    | `lemon-lambda-migrate`    | Move the dev Serverless stack to the deploy service, one phase at a time. Offline plan by default.                                            |
+| `lambda:deploy:dev` | `lemon-lambda-deploy-dev` | Dev-only `code` deploy of a pack to the migrated dev functions. Offline plan by default.                                                      |
 | `deploy:dev`        | `bin/deploy-dev.sh`       | Manual dev deploy: pack → plan → `--apply` → probe, in one command. Human-run only ([Manual dev deploy](#manual-dev-deploy-bindeploy-devsh)). |
 
-The Serverless Framework stays installed here, with every `sls` script: the other profiles deploy with it ([serverless.md](serverless.md)).
-The default profile's dev stack `eureka-hello-api-dev` moved to the deploy service on 2026-11-01 ([lambda-migrate.md](lambda-migrate.md)). Its code goes through the deploy service now, not `sls deploy`.
+The Serverless Framework is not installed here and no script calls `sls` (removed 2026-11-03, [serverless.md](serverless.md)).
+The default profile's dev stack `eureka-hello-api-dev` moved to the deploy service on 2026-11-01 ([lambda-migrate.md](lambda-migrate.md)). Its code goes through the deploy service now.
+The default profile's prod and the `ssocio` / `muzly` / `epyt` stacks are still Serverless stacks, pending migration. They have no npm deploy script; [serverless.md](serverless.md) records the `npx serverless` command per profile and stage (human only).
 
 ## lemon-core version and the reviewed target
 
@@ -83,12 +84,12 @@ The function names are `eureka-hello-api-<stage>-<fn>` in every account. Without
 Pick the account with `--profile <name>` and check the identity line (account last 4 digits) before you read anything.
 A `prod` target needs `--stage prod --confirm-stage prod`, and only on an explicit human instruction.
 
-| Deploy profile (`package.json`) | Stages    | Deploy path                                                                                                        |
-| ------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------ |
-| default (`profile=none`)        | dev, prod | dev: deploy service since 2026-11-01 (`lambda:deploy` `code` mode, later `lambda:deploy:dev`). prod: `sls` script. |
-| `ssocio`                        | prod      | `sls` scripts (`*.ssocio`)                                                                                         |
-| `muzly`                         | dev, prod | `sls` scripts (`*.muzly`)                                                                                          |
-| `epyt`                          | dev, prod | `sls` scripts (`*.epyt`; `pack`, `info`, `logs`, `remove` use prod)                                                |
+| Deploy profile (`--param`) | Stages    | Deploy path                                                                                                                                                              |
+| -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| default (`profile=none`)   | dev, prod | dev: deploy service since 2026-11-01 (`lambda:deploy` `code` mode, `lambda:deploy:dev`, `deploy:dev`). prod: pending migration, no npm script (`npx serverless` record). |
+| `ssocio`                   | prod      | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
+| `muzly`                    | dev, prod | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
+| `epyt`                     | dev, prod | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
 
 The migration and dev deploy configs carry their own `account` and `profile`; the wrapper checks the account with STS before it runs a phase.
 
@@ -126,7 +127,7 @@ npm run lambda:pack -- --output .artifacts/lambda/release-candidate
 -   It builds from a source snapshot in the Lambda image (`npm ci`, `npm run build`, production install). Host `node_modules` and `dist` are not used.
 -   The output directory has `lambda.zip` and `manifest.json`. Check `unzip -t` and the manifest `validation` block before you use the ZIP.
 -   The dev-only stand-in `scripts/deepmerge-safe/` is a local link in `package-lock.json`. Since lemon-core 5.0.16 the pack accepts such an in-repository, dev-only link and keeps it out of the ZIP.
--   The Serverless packages are dev dependencies, so the production install leaves them out of the ZIP.
+-   The Serverless packages are not installed (removed 2026-11-03), so nothing of them can reach the ZIP.
 
 ### Offline deploy plan
 
@@ -146,7 +147,7 @@ npm run lambda:deploy -- --config .artifacts/deploy.code.json --artifact .artifa
 In `code` mode the preflight needs both functions to exist **and** to be managed by the deploy service.
 
 -   Default profile, dev: migrated on 2026-11-01. `lambda:deploy -- ... --apply` works now. `lambda:deploy:dev` works too (5.0.19+). `--apply` is human only.
--   Every other profile and stage: still a Serverless stack. Do not pass `--apply`; deploy with its `sls` script ([serverless.md](serverless.md)).
+-   Every other profile and stage: still a Serverless stack, pending migration. Do not pass `--apply`; a human deploys it with the `npx serverless` record ([serverless.md](serverless.md)).
 
 ## Examples
 
