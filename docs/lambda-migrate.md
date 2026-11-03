@@ -14,8 +14,8 @@ The lemon-hello-api `docs/lambda-migrate.md` is the longer worked example of the
 ## Scope
 
 -   Only the default profile (`profile=none`) dev stage is migrated.
--   prod, and the `ssocio`, `muzly` and `epyt` stacks, are still Serverless stacks. They are not reviewed targets. They deploy with their `sls` scripts ([serverless.md](serverless.md)).
--   After this migration, do not run `npm run deploy` or `npm run remove` (default profile, dev) in that account. The dev functions belong to the deploy service.
+-   prod, and the `ssocio`, `muzly` and `epyt` stacks, are still Serverless stacks. They are not reviewed targets. They have no npm deploy script since 2026-11-03; a human deploys them with the `npx serverless` record ([serverless.md](serverless.md)).
+-   After this migration, do not run `sls deploy` or `sls remove` (default profile, dev) in that account. The dev functions belong to the deploy service. (The guarded `deploy` / `remove` scripts were removed with the Serverless packages on 2026-11-03.)
 
 ## lemon-core version
 

@@ -9,12 +9,12 @@ lemon-core 서비스는 처리하지 않은 예외를 SNS로 보낸다. 이 서�
 
 | 항목 | 값 |
 |---|---|
-| 런타임 | Node `24.15.0` (`.nvmrc`), `engines.node` `>=24.0.0`. pack은 `nodejs24.x`(`pack.config.json`)를 만든다. Serverless 스택의 런타임은 `serverless.yml` `provider.runtime`(env 설정)이다. |
+| 런타임 | Node `24.15.0` (`.nvmrc`), `engines.node` `>=24.0.0`. pack은 `nodejs24.x`(`pack.config.json`)를 만든다. 이관 전 Serverless 스택의 런타임은 `serverless.yml` `provider.runtime`(env 설정)이다. |
 | 언어·빌드 | TypeScript `^4.7.4`, `ttsc`(ttypescript)로 `src/` → `dist/`. `ts-transformer-keys` 변환기가 모델 필드 목록을 만든다. |
 | 테스트 | jest `^29.7.0` + ts-jest `^29.4.15` (`src/**/*.spec.ts`). ts-jest도 `ttypescript`로 컴파일한다(`keys<T>()` 변환기). Lambda 도구(`lemon-*`)의 테스트는 lemon-core에 있다. |
 | 프레임워크 | `lemon-core` `^5.0.23`. lemon-model은 lemon-core를 통해 온다. 루트 이름은 `lemon-core`, 그 밖의 이름은 `lemon-core/model`에서 가져온다. 이 서비스는 `lemon-model`을 직접 선언하지 않는다. 로컬 서버는 lemon-core `buildExpress()`의 로컬 API Gateway가 만든다(`src/express.ts`) — `serverless.yml` 라우트를 그대로 따르고, 없는 경로·메서드는 `403`이다. 앞단의 작은 내장 앱이 로컬 확장 라우트(`POST /echo`)를 받는다. `express`·`lemon-devkit`은 쓰지 않는다(HOW_TO_UPGRADE_V5 § 20). |
 | AWS SDK | v3 (`@aws-sdk/*` `^3.1159.0`). lemon-core v5의 선택 peer 8개를 `dependencies`에 둔다. DynamoDB 클라이언트는 lemon-core에 들어 있다. |
-| 배포 | Serverless Framework v3 (`frameworkVersion: "3"`) → AWS Lambda. 계정마다 배포한다(기본, `ssocio`, `muzly`, `epyt`). 기본 프로필의 dev 스택만 2026-11-01 배포 서비스로 이관했다: 코드는 `lambda:deploy`(`code` 모드)로 보낸다([docs/lambda-migrate.md](docs/lambda-migrate.md)). 나머지는 `sls` 그대로다([docs/serverless.md](docs/serverless.md)). |
+| 배포 | Serverless Framework는 설치하지 않는다. `sls` 스크립트도 없다(2026-11-03, [docs/serverless.md](docs/serverless.md)). 기본 프로필의 dev는 2026-11-01 배포 서비스로 이관했다: 코드는 `lambda:pack` → `lambda:deploy`(`code` 모드)·`lambda:deploy:dev`, 한 명령은 `deploy:dev`([docs/lambda-migrate.md](docs/lambda-migrate.md)). 기본 프로필 prod와 `ssocio`·`muzly`·`epyt` 스택은 아직 Serverless이고 이관 전이다: npm 배포 스크립트가 없다. 필요하면 docs/serverless.md의 `npx serverless` 기록을 사람이 쓴다. |
 | 브랜치 | 기본 브랜치 `develop`. v5 라인은 `v5` 브랜치에 있다. |
 | 패키지 버전 | `package.json` `version` |
 
@@ -37,14 +37,14 @@ lemon-core 서비스는 처리하지 않은 예외를 SNS로 보낸다. 이 서�
 | `src/service/hello-model.ts` | `TestModel`과 필드 목록 `$FIELD` | 개발자 |
 | `docs/lambda-tools.md` | Lambda 도구(lemon-core `lemon-*` 명령)의 이 서비스 사용법 | 개발자 |
 | `docs/lambda-migrate.md` | dev 스택 이관 결과(2026-11-01)와 dev 코드 배포 | 개발자 |
-| `docs/serverless.md` | Serverless Framework를 남기는 이유, 스테이지별 배포 경로 | 개발자 |
+| `docs/serverless.md` | Serverless Framework를 지운 기록, 프로필별 상태, 필요할 때 `npx`로 돌리는 구성, 지운 스크립트의 실제 대상 | 개발자 |
 | `scripts/deepmerge-safe/` | 개발 전용 `deepmerge` 대체본(`overrides`, jest 29의 `jest-config`용). 고친 판이 나오면 지운다. | 거의 안 고침 |
 | `pack.config.json` | `lemon-lambda-pack` 설정(소스 허용 목록, 런타임 경로, `handler.lambda`) | 개발자 |
 | `deploy.config.example.json`, `deploy.dev.config.example.json`, `migration.config.example.json` | `lemon-lambda-deploy`·`-deploy-dev`·`-migrate` 예시. 값은 모두 자리표시자다. 실제 설정은 `.artifacts/`(git 무시)에 둔다. | 사람 검토 필수 |
 | `data/` | 더미 데이터(`dummy-table.yml`). Lambda 패키지에 들어간다. | 개발자 |
 | `sample/` | SNS 메시지 예시(`error-1.json`, `slack-1.json`) | 참고용 |
-| `swagger/documentation.yml` | `serverless-aws-documentation` 설정 | 개발자 |
-| `serverless.yml` | 함수·이벤트·IAM·리소스(DynamoDB 테이블, SQS 큐, SNS 토픽, S3 버킷) | 사람 검토 필수 |
+| `swagger/documentation.yml` | `serverless-aws-documentation` 설정. 이관 전 스택의 기록이다(플러그인은 설치하지 않음). | 거의 안 고침 |
+| `serverless.yml` | 함수·이벤트·IAM·리소스(DynamoDB 테이블, SQS 큐, SNS 토픽, S3 버킷). 로컬 서버가 `http` 이벤트로 라우트를 만든다. 이관 전 스택의 기록이다. npm 스크립트로 `sls`를 부르지 않는다. | 사람 검토 필수 |
 | `env/` | 프로필·스테이지 설정 | **에이전트는 열지 않음** |
 
 ## 요청 흐름
@@ -142,13 +142,10 @@ flowchart LR
 
 | 계정 | 명령 | 스테이지 |
 |---|---|---|
-| 기본(`profile=none`) | `deploy.prod`, `pack.prod`, `info.prod`, `logs.prod`, `remove.prod` | prod. dev는 이관됐다: `deploy`·`remove`(dev)는 가드가 막고 `info`·`pack`·`logs`(dev)는 지웠다 — `lambda:*`를 쓴다([docs/serverless.md](docs/serverless.md)). |
-| `ssocio` | `deploy.ssocio`, `pack.ssocio`, `info.ssocio`, `logs.ssocio`, `remove.ssocio` | prod |
-| `muzly` | `deploy.muzly` / `deploy.muzly.prod`, `pack.muzly`, `info.muzly`, `logs.muzly`, `remove.muzly` | dev / prod |
-| `epyt` | `deploy.epyt` / `deploy.epyt.prod`, `pack.epyt`, `info.epyt`, `logs.epyt`, `remove.epyt` | dev / prod. `pack`·`info`·`logs`·`remove`는 prod다. |
+| 기본(`profile=none`) prod, `ssocio`, `muzly`, `epyt` | npm 배포 스크립트 없음(이관 전). `npx serverless@3.40.0 … --param='profile=<p>' --stage <s> --aws-profile <p>` 기록([docs/serverless.md](docs/serverless.md)) | 기본 prod, `ssocio` prod, `muzly` dev / prod, `epyt` dev / prod |
 | 배포 서비스(기본 프로필 dev) | `deploy:dev`, `lambda:deploy -- ... --apply`, `lambda:deploy:dev -- ... --apply`, `lambda:migrate -- <단계> ... --execute` | dev |
 
-- `ssocio`·`muzly`·`epyt` 명령은 `--aws-profile`을 명시한다. 다른 계정으로 잘못 가지 않게 하려는 것이다.
+- `ssocio`·`muzly`·`epyt`의 `npx serverless` 명령은 `--aws-profile`을 명시한다. 다른 계정으로 잘못 가지 않게 하려는 것이다.
 - 2026-10-30 보안 변경은 `CHANNEL_ENDPOINT_HOSTS` 없이 배포해도 chatic 발송을 멈추지 않는다. 목록 밖 호스트는 경고 로그만 남긴다.
 - 배포 뒤 env 파일의 스테이지마다 `CHANNEL_ENDPOINT_HOSTS`(chatic 웹훅 호스트, 쉼표 목록)를 넣기를 권한다. 넣으면 허용 목록이 전체 적용된다. 먼저 `backend` 로그에서 `endpoint host not in allow-list` 줄의 호스트를 확인한다.
 - `remove.*`는 스택을 지운다. 채널 설정이 든 DynamoDB 테이블도 지워진다.
@@ -192,7 +189,8 @@ npm run perf:lambda -- --stage dev --profile <name> --runs 5            # cold/w
 - `protocol-guard`를 빼거나 `serverless.yml` IAM에 `lambda:InvokeFunction`을 다시 넣지 않는다. 사람 결정이 필요하다.
 - `lambda:invoke`·`lambda:logs`·`perf:lambda`(lemon-core `lemon-*` 명령)에 `--raw`를 쓰지 않는다. 계정·ARN·토큰 마스킹이 꺼진다.
 - `--fn backend --event sns`는 실제 슬랙·DoU 채널로 보낸다. 먼저 `--dry`로 확인한다.
-- deploy·pack·info·`sls logs`·remove는 사람이 명시적으로 시킬 때만 돌린다.
+- `npx serverless`(deploy·package·info·logs·remove)는 사람이 명시적으로 시킬 때만 돌린다.
+- `sls`·`serverless`를 devDependencies에 다시 넣지 않는다. `sls` 스크립트도 다시 만들지 않는다. 필요하면 [docs/serverless.md](docs/serverless.md)의 `npx` 구성을 쓴다.
 - prod 스테이지 호출은 하지 않는다. lemon-core 도구의 stage guard는 dev 외 스테이지에 `--confirm-stage <stage>`를 요구한다. 이 플래그는 사람의 명시 지시가 있을 때만 붙인다.
 - 작업 전에 브랜치를 만든다. v5 라인 작업의 base는 `v5`다.
 - `npm run lint`는 파일을 고쳐 쓴다. 의도한 경우에만 돌린다.
@@ -205,7 +203,7 @@ npm run perf:lambda -- --stage dev --profile <name> --runs 5            # cold/w
 | [docs/security-review-2026-10-30.md](docs/security-review-2026-10-30.md) | 2026-10-30 보안 리뷰 결과표, 이번 변경, 검증, 남은 결정 |
 | [docs/lambda-tools.md](docs/lambda-tools.md) | Lambda 도구(lemon-core `lemon-*` 명령) 스크립트 표, 함수·계정, AWS SDK 패키지, pack·오프라인 배포 계획, 예시. 옵션·안전 규칙·exit code는 lemon-core `docs/v5/B19-bin-tools.md`·`B19-bin-deploy.md` |
 | [docs/lambda-migrate.md](docs/lambda-migrate.md) | dev 이관 결과(2026-11-01), 예시 설정, dev 코드 배포. 계약은 lemon-core `docs/v5/B19-bin-deploy.md`·`B24-migration-targets.md` |
-| [docs/serverless.md](docs/serverless.md) | Serverless Framework를 남기는 이유, 스테이지별 배포 경로, 이관된 dev에 쓰지 않는 `sls` 스크립트 |
+| [docs/serverless.md](docs/serverless.md) | Serverless Framework를 지운 기록(2026-11-03), 남긴 파일, 프로필·스테이지별 상태, `npx` 구성, 지운 스크립트의 실제 대상·대응표 |
 | [lemon-core HOW_TO_UPGRADE_V5.md](https://github.com/lemoncloud-io/lemon-core/blob/v5/HOW_TO_UPGRADE_V5.md) | lemon-core v4 → v5 업그레이드 가이드 |
 
 ## LICENSE
@@ -218,6 +216,6 @@ npm run perf:lambda -- --stage dev --profile <name> --runs 5            # cold/w
 
 | Version   | Description
 |--         |--
-| (v5)      | migrated to `lemon-core@^5.0.23` and Node 24 (`v5` branch). local mode by `LOCAL_MODE=1`, local API Gateway and Lambda tools (`lemon-*`) from lemon-core. Serverless Framework kept for the other profiles; the default profile's dev moved to the deploy service (2026-11-01).
+| (v5)      | migrated to `lemon-core@^5.0.23` and Node 24 (`v5` branch). local mode by `LOCAL_MODE=1`, local API Gateway and Lambda tools (`lemon-*`) from lemon-core. Serverless Framework removed (2026-11-03); the default profile's dev moved to the deploy service (2026-11-01), the default prod and the `ssocio`·`muzly`·`epyt` stacks have no npm deploy script until they are migrated (`npx serverless` record in docs/serverless.md).
 | 0.24.511  | optimized with `lemon-core#3.2.15`.
 | 0.24.1127 | initial version with `lemon-core#3.2.10`.
