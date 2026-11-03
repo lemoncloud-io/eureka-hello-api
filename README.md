@@ -137,6 +137,7 @@ flowchart LR
 | `npm run lambda:migrate -- <단계> --config <파일>` | dev Serverless 스택 이관(`lemon-lambda-migrate`). 기본은 오프라인 계획 | lemon-core 5.0.19부터(검토된 대상). [docs/lambda-migrate.md](docs/lambda-migrate.md) |
 | `npm run lambda:deploy:dev -- --config <파일> --artifact <pack 출력>` | 이관된 dev 함수 2개에 코드만 배포(`lemon-lambda-deploy-dev`). 기본은 오프라인 계획 | lemon-core 5.0.19부터(검토된 대상). [docs/lambda-migrate.md](docs/lambda-migrate.md) |
 | `npm run deploy:dev` | 수동 dev 배포 한 명령(`bin/deploy-dev.sh`): pack → 계획 → `--apply` → GET `/`·`/hello/0` 확인. 설정 `.artifacts/deploy.code.dev.json`이 없으면 비공개 레인 폴더에서 한 번 만든다. `--plan-only`면 계획까지만 | 사람만 실행. 기본 `profile=lemon`(`--profile`로 바꾼다, 설정의 `profile`과 같아야 한다). [docs/lambda-tools.md](docs/lambda-tools.md#manual-dev-deploy-bindeploy-devsh) |
+| `npm run ship:check` | push 전 유출 검사(`bin/ship-check.sh`, S3 게이트): 깨끗한 트리, 보호 파일(`env`·`serverless.yml`·`serverless-vpc.yml`) 무변경, diff 유출 패턴 0건, `version` 불변 또는 dev 형식 한 줄 | 읽기 전용, AWS 불필요. base 기본 `origin/v5`(`-- --base <ref>`). exit 0 통과·1 실패·2 사용법. 일치한 줄은 출력하지 않는다. [docs/lambda-tools.md](docs/lambda-tools.md#ship-check-binship-checksh) |
 
 **사람만 실행** — 에이전트는 사람이 명시적으로 시킬 때만 돌린다.
 
