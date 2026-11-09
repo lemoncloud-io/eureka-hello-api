@@ -66,7 +66,8 @@ config:
     options:
       - nodejs18.x
       - nodejs22.x
-    defaultValue: nodejs18.x
+      - nodejs24.x
+    defaultValue: nodejs22.x
     description: 'Runtime environment'
     immutable: 1
   region:
@@ -90,3 +91,39 @@ config:
     defaultValue: dev
     description: 'Deployment stage'
     immutable: 1
+  tableName:
+    isRequired: 1
+    type: string
+    description: 'DynamoDB table of this service (deploy-agent creates it; name comes from the agent)'
+    immutable: 1
+
+#==============================================
+# deploy - the service shape for the deploy-agent (apply@1 spec$)
+# - same keys/shapes as lemon-core deploy.config.json (bootstrap); routes are ADDED to the standard 18
+#   (codes-github-api data/default_settings.yml), a same method+path here wins.
+#==============================================
+deploy:
+  routes:
+    - path: /hello/{id}
+      httpMethod: PUT
+      authorizationType: AWS_IAM
+      cors: { origin: '*', headers: [Authorization, Content-Type, X-Amz-Date, X-Amz-Security-Token, X-Amz-User-Agent, X-Api-Key, X-Lemon-Language, X-Lemon-Identity], credentials: true, allowCredentialsWithWildcardOrigin: true }
+    - path: /hello/subscribe
+      httpMethod: POST
+      authorizationType: NONE
+      cors: { origin: '*', headers: [Authorization, Content-Type, X-Amz-Date, X-Amz-Security-Token, X-Amz-User-Agent, X-Api-Key, X-Lemon-Language, X-Lemon-Identity], credentials: true, allowCredentialsWithWildcardOrigin: true }
+    - path: /hello/{id}
+      httpMethod: POST
+      authorizationType: AWS_IAM
+      cors: { origin: '*', headers: [Authorization, Content-Type, X-Amz-Date, X-Amz-Security-Token, X-Amz-User-Agent, X-Api-Key, X-Lemon-Language, X-Lemon-Identity], credentials: true, allowCredentialsWithWildcardOrigin: true }
+    - path: /hello/{id}/{cmd}
+      httpMethod: POST
+      authorizationType: AWS_IAM
+      cors: { origin: '*', headers: [Authorization, Content-Type, X-Amz-Date, X-Amz-Security-Token, X-Amz-User-Agent, X-Api-Key, X-Lemon-Language, X-Lemon-Identity], credentials: true, allowCredentialsWithWildcardOrigin: true }
+    - path: /hello/{id}
+      httpMethod: DELETE
+      authorizationType: AWS_IAM
+      cors: { origin: '*', headers: [Authorization, Content-Type, X-Amz-Date, X-Amz-Security-Token, X-Amz-User-Agent, X-Api-Key, X-Lemon-Language, X-Lemon-Identity], credentials: true, allowCredentialsWithWildcardOrigin: true }
+  iam:
+    - actions: [iam:GetUser, sts:GetCallerIdentity]
+      resources: ['*']
