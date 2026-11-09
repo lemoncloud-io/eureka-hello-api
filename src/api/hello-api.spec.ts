@@ -138,5 +138,10 @@ describe('hello-controller', () => {
         sent.length = 0;
         await controller.doPostSlack('0', {}, { text: 'hello', channel: id }, { domain: 'localhost' });
         expect2(() => sent.map(N => N.endpoint)).toEqual(['https://example.com/hello/chat-send?channelId=C001']);
+
+        //* `!<channel>` (lemon-core `$slack()`) -> `!` stripped, sent directly w/o `public` rules.
+        sent.length = 0;
+        await controller.doPostSlack(`!${id}`, {}, { text: 'hello' }, { domain: 'localhost' });
+        expect2(() => sent.map(N => N.endpoint)).toEqual(['https://example.com/hello/chat-send?channelId=C001']);
     });
 });

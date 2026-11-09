@@ -174,8 +174,13 @@ export class HelloAPIController extends GeneralWEBController {
         _log(NS, '> message :=', $U.json(message));
 
         // STEP.3 send to slack. (no channel falls back to `body.channel`, then `public` so its routing rules apply)
-        const channel: string = id ? id : $T.S2(message?.channel).trim() || 'public';
-        const $res = await this.service.$slack.route(message, { channel });
+        const name: string = id ? id : $T.S2(message?.channel).trim() || 'public';
+        /** `!<channel>` (lemon-core `$slack()`) posts to that channel directly w/o routing rules, as lemon-hello does */
+        const force = name.startsWith('!');
+        const channel: string = force ? name.substring(1) || 'public' : name;
+        const $res = force
+            ? await this.service.$slack.send(message, { channel })
+            : await this.service.$slack.route(message, { channel });
         _log(NS, `> sent[${channel ?? ''}] =`, $U.json($res?.$sent));
 
         // return sent result.

@@ -612,7 +612,7 @@ export class SlackService {
             const body = $data.body;
 
             //* add additional attachment about caller context
-            if (context && body?.attachments && Array.isArray(body?.attachments)) {
+            if (!channel.startsWith('!') && context && body?.attachments && Array.isArray(body?.attachments)) {
                 body.attachments.push({
                     pretext: service,
                     fields: [

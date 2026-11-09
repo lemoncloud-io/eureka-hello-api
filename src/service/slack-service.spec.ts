@@ -326,5 +326,16 @@ describe('slack-service /w dummy', () => {
                 message: { channel: 'slack2', text: 'hi' },
             });
         }
+
+        //* `slack/!<channel>` (lemon-core `$slack()`) -> no caller-context attachment, as lemon-hello does.
+        if (1) {
+            const transform = service.asTransformer('slack');
+            const data = (channel: string) => ({ channel, service: 'svc', body: { attachments: [{ title: 'T' }] } });
+            const context = { domain: 'localhost' };
+            const $direct = await transform({ subject: 'slack', data: data('!operate'), context });
+            expect2(() => $direct.body.attachments.length).toEqual(1);
+            const $normal = await transform({ subject: 'slack', data: data('operate'), context });
+            expect2(() => $normal.body.attachments.length).toEqual(2);
+        }
     });
 });
