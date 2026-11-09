@@ -175,6 +175,15 @@ describe('slack-service /w dummy', () => {
                 meta: { text: 'hi' },
             });
 
+            //* w/ `channel` -> carried in `meta.channel` as is (the badge of the DoU card).
+            expect2(() =>
+                asChaticPayload({ channel: 'attendance', attachments: [{ title: 'T', color: 'good' }] }),
+            ).toEqual({
+                content: 'T',
+                stereo: 'webhook',
+                meta: { title: 'T', color: 'good', channel: 'attendance' },
+            });
+
             //* w/ attachments -> `meta` extracted from the first attachment (representative), incl. `footer`.
             expect2(() =>
                 asChaticPayload({
@@ -247,7 +256,7 @@ describe('slack-service /w dummy', () => {
                     content: 'hello',
                     stereo: 'webhook',
                     token: 'secret-token',
-                    meta: { text: 'hello' },
+                    meta: { text: 'hello', channel: 'chatic1' },
                 },
             });
 
@@ -262,7 +271,7 @@ describe('slack-service /w dummy', () => {
                 message: {
                     content: 'hi',
                     stereo: 'webhook',
-                    meta: { text: 'hi' },
+                    meta: { text: 'hi', channel: 'chatic2' },
                 },
             });
 
@@ -292,8 +301,10 @@ describe('slack-service /w dummy', () => {
                     content: 'hello',
                     stereo: 'webhook',
                     token: 'secret-token',
+                    //* `meta.channel` is the routed channel - same as `channel` of the S3 original above.
                     meta: {
                         text: 'hello',
+                        channel: 'chatic1',
                         sourceUrl: 'https://s3.example.com/k.json',
                     },
                 },
@@ -321,7 +332,7 @@ describe('slack-service /w dummy', () => {
                 message: {
                     content: 'hi',
                     stereo: 'webhook',
-                    meta: { text: 'hi' },
+                    meta: { text: 'hi', channel: 'chatic2' },
                 },
             });
 

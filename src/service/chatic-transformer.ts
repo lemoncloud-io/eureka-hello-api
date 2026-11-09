@@ -37,6 +37,7 @@ export const asChaticContent = (body: SlackMessage): string => {
  * extract structured meta from a slack message.
  * - pretext/title/color/fields/footer come from the first attachment (representative, same convention as `saveMessageToS3()`).
  * - text falls back to `body.text` since a plain message (no attachments) only carries `.text`.
+ * - channel comes from the routed message (`send()`), same as the `channel` of the S3 original.
  */
 export const asChaticMeta = (body: SlackMessage): Omit<ChaticWebhookMeta, 'sourceUrl'> => {
     const attachment = (body?.attachments || [])[0];
@@ -52,6 +53,7 @@ export const asChaticMeta = (body: SlackMessage): Omit<ChaticWebhookMeta, 'sourc
         username: attachment?.username,
         ts: attachment?.ts,
         footer: attachment?.footer,
+        channel: body?.channel,
     });
 };
 
