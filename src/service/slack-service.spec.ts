@@ -310,6 +310,35 @@ describe('slack-service /w dummy', () => {
                 },
             });
 
+            //* attachment `text` of a JSON string -> parsed object in the S3 original only (posted `meta.text` stays the string).
+            await service2.send({ attachments: [{ title: 'T', text: '{"a":1}' }] }, { channel: 'chatic1' });
+            expect2(() => JSON.parse(s3Calls.pop()?.json)).toEqual({
+                channel: 'chatic1',
+                attachments: [{ title: 'T', text: { a: 1 } }],
+            });
+            expect2(calls.pop()).toEqual({
+                endpoint: 'https://example.com/chat-send?channelId=C001',
+                message: {
+                    content: 'T',
+                    stereo: 'webhook',
+                    token: 'secret-token',
+                    meta: {
+                        title: 'T',
+                        text: '{"a":1}',
+                        channel: 'chatic1',
+                        sourceUrl: 'https://s3.example.com/k.json',
+                    },
+                },
+            });
+
+            //* not a JSON (parse error) -> kept as the string.
+            await service2.send({ attachments: [{ text: '{not-json}' }] }, { channel: 'chatic1' });
+            expect2(() => JSON.parse(s3Calls.pop()?.json)).toEqual({
+                channel: 'chatic1',
+                attachments: [{ text: '{not-json}' }],
+            });
+            calls.pop();
+
             //* `$s3s.putObject()` failing -> send proceeds w/o `sourceUrl` (no url, unchanged content/meta).
             const $s3sFail = {
                 bucket: () => 'test-bucket',
