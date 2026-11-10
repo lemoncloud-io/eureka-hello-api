@@ -49,6 +49,23 @@ environ:
     type: string
     description: 'SQS endpoint or configuration to integrate'
     immutable: 1
+  REPORT_ERROR:
+    isRequired: 0
+    type: boolean
+    defaultValue: 0
+    description: 'Self-report errors to the report topic (0: off — this service IS the report topic subscriber)'
+    redeploy: 1
+  SLACK_PUT_S3:
+    isRequired: 0
+    type: boolean
+    defaultValue: 1
+    description: 'Store large slack message bodies into `MY_S3_BUCKET` (0: off, 1: on)'
+    redeploy: 1
+  CHANNEL_ENDPOINT_HOSTS:
+    isRequired: 0
+    type: string
+    description: 'Extra allowed channel endpoint hosts (comma separated); unset keeps the warn-only behavior'
+    redeploy: 1
 
 #==============================================
 # config
@@ -91,3 +108,40 @@ config:
     defaultValue: dev
     description: 'Deployment stage'
     immutable: 1
+  tableName:
+    isRequired: 1
+    type: string
+    description: 'DynamoDB table (`_id` HASH, stream NEW_AND_OLD_IMAGES → backend). sls: eureka-hello-table[-dev]'
+  queueName:
+    isRequired: 1
+    type: string
+    description: 'SQS queue consumed by backend (`MY_SQS_ENDPOINT`). sls: eureka-hello-sqs[-dev]'
+  topicName:
+    isRequired: 1
+    type: string
+    description: 'SNS report-error topic of this account; backend subscribes it and forwards to the chat channel (`MY_SNS_ENDPOINT`). sls: eureka-hello-sns[-dev]'
+  bucketName:
+    isRequired: 1
+    type: string
+    description: 'Public-read S3 bucket for large message bodies (`MY_S3_BUCKET`). sls: <profile bucket>[-dev]'
+    redeploy: 1
+
+#==============================================
+# deploy - Generic deploy path (apply@1 spec$), only what differs from the standard
+#==============================================
+deploy:
+  routes:
+    - { path: '/hello/{id}', httpMethod: POST, authorizationType: AWS_IAM }
+    - { path: '/hello/{id}', httpMethod: PUT, authorizationType: AWS_IAM }
+    - { path: '/hello/{id}', httpMethod: DELETE, authorizationType: AWS_IAM }
+    - { path: '/hello/{id}/{cmd}', httpMethod: POST, authorizationType: AWS_IAM }
+    - { path: '/hello/subscribe', httpMethod: POST, authorizationType: NONE }
+  bucket:
+    publicAccessBlock: { blockPublicAcls: false, ignorePublicAcls: false, blockPublicPolicy: false, restrictPublicBuckets: false }
+    ownership: ObjectWriter
+    cors: { allowedOrigins: ['*'], allowedMethods: [GET, HEAD], allowedHeaders: ['*'], maxAgeSeconds: 3000 }
+    policy:
+      statements:
+        - { Sid: PublicReadGetObject, Effect: Allow, Principal: '*', Action: ['s3:GetObject'], Resource: ['arn:aws:s3:::{{bucket}}/*'] }
+  iam:
+    - { actions: ['iam:GetUser', 'sts:GetCallerIdentity'], resources: ['*'] }
