@@ -175,6 +175,15 @@ describe('slack-service /w dummy', () => {
                 meta: { text: 'hi' },
             });
 
+            //* w/ `channel` -> carried in `meta.channel` as is (the badge of the DoU card).
+            expect2(() =>
+                asChaticPayload({ channel: 'attendance', attachments: [{ title: 'T', color: 'good' }] }),
+            ).toEqual({
+                content: 'T',
+                stereo: 'webhook',
+                meta: { title: 'T', color: 'good', channel: 'attendance' },
+            });
+
             //* w/ attachments -> `meta` extracted from the first attachment (representative), incl. `footer`.
             expect2(() =>
                 asChaticPayload({
@@ -247,7 +256,7 @@ describe('slack-service /w dummy', () => {
                     content: 'hello',
                     stereo: 'webhook',
                     token: 'secret-token',
-                    meta: { text: 'hello' },
+                    meta: { text: 'hello', channel: 'chatic1' },
                 },
             });
 
@@ -262,7 +271,7 @@ describe('slack-service /w dummy', () => {
                 message: {
                     content: 'hi',
                     stereo: 'webhook',
-                    meta: { text: 'hi' },
+                    meta: { text: 'hi', channel: 'chatic2' },
                 },
             });
 
@@ -292,12 +301,43 @@ describe('slack-service /w dummy', () => {
                     content: 'hello',
                     stereo: 'webhook',
                     token: 'secret-token',
+                    //* `meta.channel` is the routed channel - same as `channel` of the S3 original above.
                     meta: {
                         text: 'hello',
+                        channel: 'chatic1',
                         sourceUrl: 'https://s3.example.com/k.json',
                     },
                 },
             });
+
+            //* attachment `text` of a JSON string -> parsed object in the S3 original only (posted `meta.text` stays the string).
+            await service2.send({ attachments: [{ title: 'T', text: '{"a":1}' }] }, { channel: 'chatic1' });
+            expect2(() => JSON.parse(s3Calls.pop()?.json)).toEqual({
+                channel: 'chatic1',
+                attachments: [{ title: 'T', text: { a: 1 } }],
+            });
+            expect2(calls.pop()).toEqual({
+                endpoint: 'https://example.com/chat-send?channelId=C001',
+                message: {
+                    content: 'T',
+                    stereo: 'webhook',
+                    token: 'secret-token',
+                    meta: {
+                        title: 'T',
+                        text: '{"a":1}',
+                        channel: 'chatic1',
+                        sourceUrl: 'https://s3.example.com/k.json',
+                    },
+                },
+            });
+
+            //* not a JSON (parse error) -> kept as the string.
+            await service2.send({ attachments: [{ text: '{not-json}' }] }, { channel: 'chatic1' });
+            expect2(() => JSON.parse(s3Calls.pop()?.json)).toEqual({
+                channel: 'chatic1',
+                attachments: [{ text: '{not-json}' }],
+            });
+            calls.pop();
 
             //* `$s3s.putObject()` failing -> send proceeds w/o `sourceUrl` (no url, unchanged content/meta).
             const $s3sFail = {
@@ -321,7 +361,7 @@ describe('slack-service /w dummy', () => {
                 message: {
                     content: 'hi',
                     stereo: 'webhook',
-                    meta: { text: 'hi' },
+                    meta: { text: 'hi', channel: 'chatic2' },
                 },
             });
 

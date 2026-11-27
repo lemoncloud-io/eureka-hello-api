@@ -23,6 +23,27 @@ export const asShortText = (text: any): string | undefined =>
     typeof text === 'string' && text.length > 0 && text.length <= TEXT_LIMIT ? text : undefined;
 
 /**
+ * copy of a slack message for the S3 original — `attachments[].text` of a JSON object string is stored as the parsed object.
+ * - not a JSON (parse error) -> keep the string as-is.
+ */
+export const asChaticSource = (body: SlackMessage): SlackMessage => {
+    const attachments = body?.attachments;
+    if (!Array.isArray(attachments)) return body;
+    return {
+        ...body,
+        attachments: attachments.map((N: any) => {
+            const text = N?.text;
+            if (typeof text !== 'string' || !text.startsWith('{') || !text.endsWith('}')) return N;
+            try {
+                return { ...N, text: JSON.parse(text) };
+            } catch (e) {
+                return N;
+            }
+        }),
+    };
+};
+
+/**
  * compose summary content (notification preview) from a slack message.
  * - the first attachment's `title` -> `pretext` lines in order; detail rendering is delegated to `meta` (app).
  * - a plain message (no attachments) falls back to a short `.text`.
@@ -37,6 +58,7 @@ export const asChaticContent = (body: SlackMessage): string => {
  * extract structured meta from a slack message.
  * - pretext/title/color/fields/footer come from the first attachment (representative, same convention as `saveMessageToS3()`).
  * - text falls back to `body.text` since a plain message (no attachments) only carries `.text`.
+ * - channel comes from the routed message (`send()`), same as the `channel` of the S3 original.
  */
 export const asChaticMeta = (body: SlackMessage): Omit<ChaticWebhookMeta, 'sourceUrl'> => {
     const attachment = (body?.attachments || [])[0];
@@ -52,6 +74,7 @@ export const asChaticMeta = (body: SlackMessage): Omit<ChaticWebhookMeta, 'sourc
         username: attachment?.username,
         ts: attachment?.ts,
         footer: attachment?.footer,
+        channel: body?.channel,
     });
 };
 

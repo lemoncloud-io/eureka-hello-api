@@ -29,7 +29,7 @@ This page keeps only what is specific to this service. The tests of the tools ar
 
 The Serverless Framework is not installed here and no script calls `sls` (removed 2026-11-03, [serverless.md](serverless.md)).
 The default profile's dev stack `eureka-hello-api-dev` moved to the deploy service on 2026-11-01 ([lambda-migrate.md](lambda-migrate.md)). Its code goes through the deploy service now.
-The default profile's prod and the `ssocio` / `muzly` / `epyt` stacks are still Serverless stacks, pending migration. They have no npm deploy script; [serverless.md](serverless.md) records the `npx serverless` command per profile and stage (human only).
+The default profile's prod moves to the deploy service with the deploy service harness; after that it is deployed with `deploy:prod` (`bin/deploy-dev.sh --stage prod`). Until then, and for the `ssocio` / `muzly` / `epyt` stacks, they are still Serverless stacks, pending migration. They have no npm deploy script; [serverless.md](serverless.md) records the `npx serverless` command per profile and stage (human only).
 
 ## lemon-core version and the reviewed target
 
@@ -42,7 +42,7 @@ Since lemon-core 5.0.19 (PR #266), its `bin/lib/org-defaults.mjs` `migration.tar
 
 `npm run deploy:dev` is the one-command path for a human to ship the current checkout to the `lemon` dev stage. It wraps the same tools as the rows above and runs them in the lane order — nothing in it is new deploy logic.
 
-1. Preflight: `package.json` + `pack.config.json` present, stage `dev` only (prod stays a Serverless stack, see [serverless.md](serverless.md)), Node ≥ 24, `jq`, `aws`, `docker`, lemon-core bins installed, config in **code mode** with matching `stage` / `profile` / `project` (`project` = `package.json` `name`), `aws sts get-caller-identity` (account redacted).
+1. Preflight: `package.json` + `pack.config.json` present, stage `dev` or `prod` (`deploy:prod` asks before apply and applies only a committed, clean tree; prod is a deploy-service stage only after its migration, see [serverless.md](serverless.md)), Node ≥ 24, `jq`, `aws`, `docker`, lemon-core bins installed, config in **code mode** with matching `stage` / `profile` / `project` (`project` = `package.json` `name`), `aws sts get-caller-identity` (account redacted).
 2. Pack: `npm run lambda:pack -- --output .artifacts/lambda/dev-<time>-<sha>` (Docker). `--skip-pack --artifact <dir>` reuses an existing pack.
 3. Offline plan: `lambda:deploy --config … --artifact …` → `<artifact>/plan.dev.json`, summary printed with account / endpoint redacted. `--plan-only` stops here.
 4. Apply: a **separate** `lambda:deploy … --apply --receipt-dir .artifacts/deploy/receipts` command; the run must end `completed`. No prompt by default — `--ask` inserts a confirm step.
@@ -86,7 +86,7 @@ A `prod` target needs `--stage prod --confirm-stage prod`, and only on an explic
 
 | Deploy profile (`--param`) | Stages    | Deploy path                                                                                                                                                              |
 | -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| default (`profile=none`)   | dev, prod | dev: deploy service since 2026-11-01 (`lambda:deploy` `code` mode, `lambda:deploy:dev`, `deploy:dev`). prod: pending migration, no npm script (`npx serverless` record). |
+| default (`profile=none`)   | dev, prod | dev: deploy service since 2026-11-01 (`lambda:deploy` `code` mode, `lambda:deploy:dev`, `deploy:dev`). prod: pending migration to the deploy service harness (then `deploy:prod`); until then no npm script (`npx serverless` record). |
 | `ssocio`                   | prod      | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
 | `muzly`                    | dev, prod | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
 | `epyt`                     | dev, prod | pending migration, no npm script (`npx serverless` record in [serverless.md](serverless.md))                                                                             |
@@ -147,7 +147,7 @@ npm run lambda:deploy -- --config .artifacts/deploy.code.json --artifact .artifa
 In `code` mode the preflight needs both functions to exist **and** to be managed by the deploy service.
 
 -   Default profile, dev: migrated on 2026-11-01. `lambda:deploy -- ... --apply` works now. `lambda:deploy:dev` works too (5.0.19+). `--apply` is human only.
--   Every other profile and stage: still a Serverless stack, pending migration. Do not pass `--apply`; a human deploys it with the `npx serverless` record ([serverless.md](serverless.md)).
+-   Every other profile and stage: still a Serverless stack, pending migration (the default profile's prod moves with the deploy service harness, then `deploy:prod`). Do not pass `--apply`; a human deploys it with the `npx serverless` record ([serverless.md](serverless.md)).
 
 ## Examples
 

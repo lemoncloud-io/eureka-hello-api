@@ -19,13 +19,13 @@
 | 프로필               | 스테이지  | 소유                         | 배포 경로                                                                                                   |
 | -------------------- | --------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | 기본(`profile=none`) | dev       | 배포 서비스(2026-11-01 이관) | `lambda:pack` → `lambda:deploy` `code` 모드, 또는 `lambda:deploy:dev`. 한 명령은 `deploy:dev`. 사람만 실행. |
-| 기본(`profile=none`) | prod      | Serverless (이관 전)         | npm 스크립트 없음. 아래 `npx` 구성. 사람만 실행.                                                            |
+| 기본(`profile=none`) | prod      | Serverless (이관 전) → 배포 서비스 하네스로 이관 예정 | 이관 전: 아래 `npx` 구성(사람만). 이관 뒤: `deploy:prod`(`code` 모드, 사람만 실행). |
 | `ssocio`             | prod      | Serverless (이관 전)         | npm 스크립트 없음. 아래 `npx` 구성. 사람만 실행.                                                            |
 | `muzly`              | dev, prod | Serverless (이관 전)         | npm 스크립트 없음. 아래 `npx` 구성. 사람만 실행.                                                            |
 | `epyt`               | dev, prod | Serverless (이관 전)         | npm 스크립트 없음. 아래 `npx` 구성. 사람만 실행.                                                            |
 
 -   모든 계정에서 스택 이름은 `eureka-hello-api-<stage>`다. 계정은 `--aws-profile`(또는 셸 자격 증명)이 정한다.
--   기본 프로필 prod와 다른 프로필의 스택은 lemon-core의 검토된 이관 대상이 아니다. 이관 전에는 이 저장소에 그 배포 스크립트가 없다.
+-   기본 프로필 prod와 다른 프로필의 스택은 lemon-core의 검토된 이관 대상이 아니다. 이관 전에는 이 저장소에 그 배포 스크립트가 없다. 기본 프로필 prod는 배포 서비스 하네스로 이관한 뒤 `deploy:prod`(`bin/deploy-dev.sh --stage prod`)로 배포한다.
 
 ## Serverless로 직접 실행해야 하면 (`npx`, devDependency 없음)
 

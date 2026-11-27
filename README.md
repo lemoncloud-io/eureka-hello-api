@@ -14,7 +14,7 @@ lemon-core 서비스는 처리하지 않은 예외를 SNS로 보낸다. 이 서�
 | 테스트 | jest `^29.7.0` + ts-jest `^29.4.15` (`src/**/*.spec.ts`). ts-jest도 `ttypescript`로 컴파일한다(`keys<T>()` 변환기). Lambda 도구(`lemon-*`)의 테스트는 lemon-core에 있다. |
 | 프레임워크 | `lemon-core` `^5.0.23`. lemon-model은 lemon-core를 통해 온다. 루트 이름은 `lemon-core`, 그 밖의 이름은 `lemon-core/model`에서 가져온다. 이 서비스는 `lemon-model`을 직접 선언하지 않는다. 로컬 서버는 lemon-core `buildExpress()`의 로컬 API Gateway가 만든다(`src/express.ts`) — `serverless.yml` 라우트를 그대로 따르고, 없는 경로·메서드는 `403`이다. 앞단의 작은 내장 앱이 로컬 확장 라우트(`POST /echo`)를 받는다. `express`·`lemon-devkit`은 쓰지 않는다(HOW_TO_UPGRADE_V5 § 20). |
 | AWS SDK | v3 (`@aws-sdk/*` `^3.1159.0`). lemon-core v5의 선택 peer 8개를 `dependencies`에 둔다. DynamoDB 클라이언트는 lemon-core에 들어 있다. |
-| 배포 | Serverless Framework는 설치하지 않는다. `sls` 스크립트도 없다(2026-11-03, [docs/serverless.md](docs/serverless.md)). 기본 프로필의 dev는 2026-11-01 배포 서비스로 이관했다: 코드는 `lambda:pack` → `lambda:deploy`(`code` 모드)·`lambda:deploy:dev`, 한 명령은 `deploy:dev`([docs/lambda-migrate.md](docs/lambda-migrate.md)). 기본 프로필 prod와 `ssocio`·`muzly`·`epyt` 스택은 아직 Serverless이고 이관 전이다: npm 배포 스크립트가 없다. 필요하면 docs/serverless.md의 `npx serverless` 기록을 사람이 쓴다. |
+| 배포 | Serverless Framework는 설치하지 않는다. `sls` 스크립트도 없다(2026-11-03, [docs/serverless.md](docs/serverless.md)). 기본 프로필의 dev는 2026-11-01 배포 서비스로 이관했다: 코드는 `lambda:pack` → `lambda:deploy`(`code` 모드)·`lambda:deploy:dev`, 한 명령은 `deploy:dev`([docs/lambda-migrate.md](docs/lambda-migrate.md)). 기본 프로필 prod는 배포 서비스 하네스로 이관한 뒤 `deploy:prod`(`bin/deploy-dev.sh --stage prod`)로 배포한다. `ssocio`·`muzly`·`epyt` 스택은 아직 Serverless이고 이관 전이다: npm 배포 스크립트가 없다. 필요하면 docs/serverless.md의 `npx serverless` 기록을 사람이 쓴다. |
 | 브랜치 | 기본 브랜치 `develop`. v5 라인은 `v5` 브랜치에 있다. |
 | 패키지 버전 | `package.json` `version` |
 
@@ -142,7 +142,7 @@ flowchart LR
 
 | 계정 | 명령 | 스테이지 |
 |---|---|---|
-| 기본(`profile=none`) prod, `ssocio`, `muzly`, `epyt` | npm 배포 스크립트 없음(이관 전). `npx serverless@3.40.0 … --param='profile=<p>' --stage <s> --aws-profile <p>` 기록([docs/serverless.md](docs/serverless.md)) | 기본 prod, `ssocio` prod, `muzly` dev / prod, `epyt` dev / prod |
+| 기본(`profile=none`) prod, `ssocio`, `muzly`, `epyt` | npm 배포 스크립트 없음(이관 전; 기본 prod는 배포 서비스 하네스 이관 뒤 `deploy:prod`). `npx serverless@3.40.0 … --param='profile=<p>' --stage <s> --aws-profile <p>` 기록([docs/serverless.md](docs/serverless.md)) | 기본 prod, `ssocio` prod, `muzly` dev / prod, `epyt` dev / prod |
 | 배포 서비스(기본 프로필 dev) | `deploy:dev`, `lambda:deploy -- ... --apply`, `lambda:deploy:dev -- ... --apply`, `lambda:migrate -- <단계> ... --execute` | dev |
 
 - `ssocio`·`muzly`·`epyt`의 `npx serverless` 명령은 `--aws-profile`을 명시한다. 다른 계정으로 잘못 가지 않게 하려는 것이다.

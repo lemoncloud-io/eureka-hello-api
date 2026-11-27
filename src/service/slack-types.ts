@@ -143,6 +143,8 @@ export interface ChaticWebhookMeta {
     ts?: number;
     /** footer origin string. ex) 'chatic-sockets-api/lemon-production#0.26.710' */
     footer?: string;
+    /** routed alarm channel name — the badge of the DoU card. ex) 'attendance' */
+    channel?: string;
     /** url of the full original payload (S3) */
     sourceUrl?: string;
 }
