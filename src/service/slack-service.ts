@@ -10,7 +10,7 @@
  */
 import $cores, { $info, $T, $U, _err, _inf, _log, GETERR, NextContext } from 'lemon-core';
 import { AWSS3Service, SlackAttachment, SlackPostBody } from 'lemon-core';
-import { asChaticPayload } from './chatic-transformer';
+import { asChaticPayload, asChaticSource } from './chatic-transformer';
 import { RouteRule, SlackChannelModel, SlackResponse, StorageSupportable } from './slack-types';
 const NS = $U.NS('slack', 'blue'); // NAMESPACE TO BE PRINTED.
 
@@ -432,6 +432,7 @@ export class SlackService {
     /**
      * upload the original message (JSON) to S3 for `chatic` webhook.
      * - unlike `saveMessageToS3()`, this does not rewrite `.attachments` w/ slack markup.
+     * - `attachments[].text` of a JSON string is stored as the parsed object. (see `asChaticSource()`)
      * - returns the object URL, or `undefined` if S3 is not configured/enabled or upload fails.
      */
     public saveChaticSourceToS3 = async (message: SlackMessage, isUseS3?: boolean): Promise<string> => {
@@ -440,7 +441,7 @@ export class SlackService {
         const bucket = this.options?.$s3s?.bucket();
         if (!isUseS3 || !bucket) return undefined;
         return this.options?.$s3s
-            .putObject($U.json(message))
+            .putObject($U.json(asChaticSource(message)))
             .then(res => res?.Location)
             .catch(e => {
                 _err(NS, '> WARN! chatic.s3.err =', e);
